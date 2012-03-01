@@ -1,0 +1,9 @@
+Set of Puppet scripts set up with the idea of living under /etc/puppet/scripts
+as a Git submodule. These scripts are barely above 'quick and dirty' status
+but I have used them for years now and they work great for me. Submit patches
+to your heart's content, if they fit in with general use case enough, I will 
+take them.
+
+Known bugs are in the scripts themselves in the headers. Like for instance
+the ec2-instance.rb script doesn't actually keep track of a queue of threads
+like I had originally wanted.
