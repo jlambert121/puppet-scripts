@@ -1,0 +1,585 @@
+#!/bin/bash
+# This script does syntax checks on a working tree of a puppet git repo,
+# and then utilizes the stored config DB to find a host that belongs to
+# a changed class, then compile the catalog for that host. Note that
+# this script is designed to be run in the scripts directory of the puppet
+# checkout.
+#
+# In regular mode, your diff is between the current origin. This can be mod-
+# ified by using the -d argument, which diffs against the deployed revision.
+#
+# This script can also be used as a git pre-commit hook, by placing it in
+# your git checkout under .git/hooks/pre-commit, or linking the git pre-
+# commit file to the script itself.
+#
+# Note that this script auto-detects whether you are in an svn or git
+# checkout, and alters its mode of operation depending on the VCS used.
+#
+# Also note that -r does not currently work right when git sub-modules
+# are involved. Will eventually be fixed.
+#
+# Finally, you should make sure you are in the root of the checkout when this
+# is run otherwise it likely won't work right, esp wrt submodules.
+#
+
+function caterror() {
+   cat "$1" >&2
+}
+
+function die() {
+   printf "%s\n" "$1"
+   exit $2
+}
+
+function usage() {
+   printf "                              _        _            _   \n"
+   printf " _ __  _   _ _ __  _ __   ___| |_     | |_ ___  ___| |_ \n"
+   printf "| '_ \| | | | '_ \| '_ \ / _ \ __|____| __/ _ \/ __| __|\n"
+   printf "| |_) | |_| | |_) | |_) |  __/ ||_____| ||  __/\__ \ |_ \n"
+   printf "| .__/ \__,_| .__/| .__/ \___|\__|     \__\___||___/\__|\n"
+   printf "|_|         |_|   |_| \n\n"
+
+   printf "This script can be used to perform a thorough test of\n"
+   printf "your puppet checkout, including syntax, duplication,\n"
+   printf "and compile-time errors.\n\n"
+
+   printf "Note that specifying revisions here only applies to the diff.\n"
+   printf "This means that you should not expect this script to check\n"
+   printf "out the given revision to test the actual code from that\n"
+   printf "revision. This type of functionality will be added later.\n\n"
+
+   printf "Usage:\n"
+   printf "   $(basename $0) [-c] [-e environment] [-f] [-F]\n"
+   printf "   -d  Performs test of deployed rev v. your checkout\n"
+   printf "   -e  Puppet environment to test against, default production\n"
+   printf "   -f  Force tests even if there are no changes\n"
+   printf "   -F  Really force, even for regex node checks\n"
+   printf "   -m  Sets VCS mode. Can be 'git', 'svn', or 'git-svn'\n"
+   printf "   -p  Sets puppet masters (FQDNs), space separated, all one arg in quotes.\n"
+   printf "   -P  Specify the root of your Puppet checkout. Default to ~/working/git/puppet\n"
+   printf "   -r  Specify revision to diff against, or range of revisions to \n"
+   printf "       diff between. Range must be in the form of rev1:rev2. Does not yet\n"
+   printf "       work with submodules.\n"
+   printf "\n"
+
+   exit 0
+}
+
+check_node_regex=false
+compile_failure_log="$(mktemp /tmp/compile_failure_log.XXXXXX)"
+deployed="false"
+environment="staging"
+error_msg=$(mktemp /tmp/error_msg.XXXXXX)
+force="false"
+fullforce="false"
+puppet_masters="puppet.$(hostname -f | awk -F'.' '{ print $(NF-1)"."$NF }')"
+puppetroot="$HOME/working/git/puppet"
+storedconfig_password="$(grep dbpassword $puppetroot/puppet.conf | awk -F' ' '{print $NF}')"
+syntax_errors=0
+vcs=""
+
+while getopts de:fFhm:P:r: option; do
+   case "$option" in
+      d)
+         deployed="true"
+      ;;
+      e)
+         environment="$OPTARG"
+
+         if [ '!' -d "${puppetroot}/${environment}" ]; then
+            printf "Environment %s does not exist\n." "$environment"
+            exit -1
+         fi
+      ;;
+      f)
+         force="true"
+      ;;
+      F)
+         force="true"
+         fullforce="true"
+      ;;
+      m)
+         vcs="$OPTARG"
+
+         if [ "$vcs" != "git" -a "$vcs" != "svn" -a "$vcs" != "git-svn" ]; then
+            printf "FATAL: %s is not a supported VCS!\n" >&2
+            exit -15
+         fi
+      ;;
+      p)
+         puppet_masters="$OPTARG"
+      ;;
+      P)
+         puppetroot="$OPTARG"
+      ;;
+      r)
+         rev="$OPTARG"
+      ;;
+      [?h])
+         usage
+      ;;
+   esac
+done
+
+# Fail if puppetroot is not there
+if [ ! -d "$puppetroot" ]; then
+   die "FATAL: Puppet checkout not found at ${puppetroot}" -2
+fi
+
+# Die if attempt to diff against prod and specify revision
+if [ "$deployed" == "true" -a -n "$rev" ]; then
+   die "-d and -r are mutually exclusive options!" "107"
+fi
+
+# Attempt to auto-identify VCS if nothing is passed to -m
+if [ -z "$vcs" ]; then
+   if [ -e "${puppetroot}/.git" ]; then
+      vcs="git"
+   elif [ -e "${puppetroot}/.svn" ]; then
+      vcs="svn"
+   fi
+
+   if [ -z "$vcs" ]; then
+      printf "FATAL: Could not determine VCS!\n" >&2
+      exit -1
+   else
+      printf "Selecting %s as vcs...\n" "$vcs"
+   fi
+fi
+
+# Move to puppet root and let the games begin
+cd $puppetroot
+
+# Determine if given revision or revision range is valid. Die if not.
+if [ -n "$rev" ]; then
+   export IFS=:
+   case "$vcs" in
+      git)
+         for r in $rev; do
+            if '!' git show --summary ${r} >/dev/null 2>&1; then
+               die "Git revision ${r} is not valid" "69"
+            fi
+         done
+      ;;
+      git-svn)
+         for r in $rev; do
+            if '!' git svn find-rev r${r} >/dev/null 2>&1; then
+               die "SVN Revision ${r} does not exit" "70"
+            fi
+         done
+      ;;
+      svn)
+         for r in $rev; do
+            if '!' svn info -r${r} >/dev/null 2>&1; then
+               die "SVN Revision ${r} is not valid" "71"
+            fi
+         done
+      ;;
+      *)
+         die "Sense is not being made" "42"
+      ;;
+   esac
+fi
+
+# It would be a little weird to try and add conditionals to save some lines
+# here, so we just do separate behavior for each VCS.
+case $vcs in
+   git)
+      current_branch=$(git branch | egrep '^\*' | cut -d' ' -f2)
+
+      if [ "$current_branch" == "master" ]; then
+         git pull --all >/dev/null 2>&1
+         git submodule update --merge >/dev/null 2>&1
+
+         if [ $? -ne 0 ]; then
+            printf "Unspecified error when running git pull and/or submodule update on your checkout!\n" >&2
+            exit -1
+         fi
+      fi
+
+      if [ "$deployed" = "true" ]; then
+         oldrev=$(ssh $(echo $puppet_masters | cut -d' ' -f1) "sudo cat /etc/puppet/REVISION")
+         diffcmd="git diff ${oldrev}"
+      elif [ -n "$rev" ]; then
+         diffcmd="git diff $(echo $rev | tr ':' ' ')"
+      else
+         diffcmd="git diff origin"
+      fi
+
+      unset IFS
+
+      # Get list of submodules
+      submodules=$(git submodule | cut -c2-)
+
+      if [ "$submodules" == "" ]; then
+         changes=$(\
+                  eval ${diffcmd} \
+                  | grep '^+++' \
+                  | grep -v '/dev/null$' \
+                  | cut -d'/' -f2- \
+                  | sort -u \
+                  )
+      else
+         if [ "$deployed" == "true" ]; then
+            changes="$($puppetroot/scripts/uberdiff.rb "${oldrev}")"
+         elif [ -n "$rev" ]; then
+            changes="$($puppetroot/scripts/uberdiff.rb \"$(echo $rev | tr ':' ' ')\")"
+         else
+            changes="$($puppetroot/scripts/uberdiff.rb HEAD)"
+         fi
+      fi
+   ;;
+   git-svn)
+      if [ "$deployed" = "true" ]; then
+         oldsvnrev=$(ssh $(echo $puppet_masters | cut -d' ' -f1) "sudo cat /etc/puppet/REVISION")
+         oldrev=$(git svn find-rev r${oldsvnrev})
+         diffcmd="git diff ${oldrev}"
+      elif [ -n "$rev" ]; then
+         for r in $rev; do
+            gitrev="$gitrev $(git svn find-rev r${r})"
+         done
+
+         diffcmd="git diff $gitrev"
+      else
+         diffcmd="git diff git-svn"
+      fi
+
+      unset IFS
+      changes=$(\
+               eval ${diffcmd} \
+               | grep '^+++' \
+               | grep -v '/dev/null$' \
+               | cut -d'/' -f2- \
+               | sort -u \
+               )
+   ;;
+   svn)
+      svn up >/dev/null 2>&1
+
+      if [ $? -ne 0 ]; then
+         printf "Unspecified error when running svn up on your checkout!\n" >&2
+         exit -1
+      fi
+      
+      if [ "$deployed" == 'true' ]; then
+         oldrev=$(ssh $(echo $puppet_masters | cut -d' ' -f1) "sudo cat /etc/puppet/REVISION")
+         diffcmd="svn diff -r${oldrev}"
+      elif [ -n "$rev" ]; then
+         diffcmd="svn diff -r${rev}"
+      else
+         diffcmd="svn diff"
+      fi
+
+      unset IFS
+      changes=$(\
+               eval ${diffcmd} \
+               | grep '^+++' \
+               | cut -d' ' -f2- \
+               | sed 's/[[:space:]]\+(working copy)//g' \
+               | sort -u \
+               )
+   ;;
+   *)
+      printf "FATAL: Pigs have flown\n" >&2
+      exit -42
+   ;;
+esac
+
+# If no changes and not in force mode, end.
+if [ -z "$changes" -a "$force" == "false" ]; then
+    printf "No changes made.\n"
+    rm -f $error_msg
+    exit 0
+fi
+
+# If full force mode is on, set check_node_regex to true
+check_node_regex="$fullforce"
+
+# If full force is off, but there are node changes, set check_node_regex true
+if echo $changes | grep -q 'manifests/nodes'; then
+    check_node_regex=true
+fi
+
+# The syntax checks also check for hard tabs in Ruby, ERB, shell, and puppet
+# code. It is fairly stupid and only uses file extensions to do this.
+printf "Checking syntax on changes in working tree... "
+for change in $changes; do
+   case $change in
+      *.erb)
+         # Check ERB template syntax
+         cat $change \
+         | erb -P -x -T - \
+         | ruby -cw 2> $error_msg > /dev/null
+
+         if [ "$?" -ne 0 ]; then
+            printf 'FAIL!\nERB Parse Failure:\n' >&2
+            printf "$change: " >&2
+            caterror $error_msg
+            syntax_errors=$((syntax_errors + 1))
+         fi
+
+         if cat $change | grep -q '	'; then
+            printf 'FAIL!\nHard tabs found in %s!\n' "$change" >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+      ;;
+      *.pp)
+         # Check puppet manifest syntax
+          puppet parser validate --color=false --ignoreimport $change > $error_msg 2>&1
+
+         if [ "$?" -ne 0 ]; then
+            printf 'FAIL!\nPuppet Parse Failure:\n' >&2
+            printf "$change: " >&2
+            caterror $error_msg
+            syntax_errors=$((syntax_errors + 1))
+         fi
+
+         if cat $change | grep -q '	'; then
+            printf 'FAIL!\nHard tabs found in %s!\n' "$change" >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+      ;;
+      *.rb)
+         # Check Ruby template syntax
+         cat $change \
+         | ruby -cw > /dev/null
+
+         if [ "$?" -ne 0 ]; then
+            printf 'FAIL!\nRuby Parse Failure:\n' >&2
+            printf "$change: " >&2
+            caterror $error_msg
+            syntax_errors=$((syntax_errors + 1))
+         fi
+
+         if cat $change | grep -q '	'; then
+            printf 'FAIL!\nHard tabs found in %s!\n' "$change" >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+      ;;
+      *.sh)
+         # Shell scripts
+         cat $change \
+         | bash -n
+
+         if [ "$?" -ne 0 ]; then
+            printf 'FAIL!\nParse Failure:\n' >&2
+            printf "$change: " >&2
+            caterror $error_msg
+            syntax_errors=$((syntax_errors + 1))
+         fi
+
+         if cat $change | grep -q '	'; then
+            printf 'FAIL!\nHard tabs found in %s!\n' "$change" >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+      ;;
+   esac
+
+   rm -f $error_msg
+
+   if [ "$syntax_errors" -ne 0 ]; then
+      printf \
+         '%s syntax or style errors found!\n' \
+         "$syntax_errors" >&2
+      exit 1
+   fi
+done
+printf "SUCCESS!\n"
+
+# Now let's check for duplicate defined classes
+printf "Checking for duplicate class definitions... "
+IFS=$'\n'
+sorted_classlist=( $(find $puppetroot/$environment -type f -name '*.pp' -a ! -path $puppetroot/dist\* -exec egrep -h 'class[[:space:]]+([[:alnum:]]|[-_:])+[[:space:]]+(inherits[[:space:]]+([[:alnum:]]|[-_:])+|.*)*{' {} \; | sort) )
+unset IFS
+
+duplicate_classlist=$(\
+   for ((i = 0; i < ${#sorted_classlist[*]}; i++)); do
+      echo ${sorted_classlist[$i]}
+   done | uniq -d | awk '{ print $2 }' \
+)
+
+if [ -n "$duplicate_classlist" ]; then
+   printf "FAIL!\n\nIt appears that the following classes have duplicates:\n" >&2
+
+   for ((i = 0; i < ${#duplicate_classlist[*]}; i++)); do
+      printf "%s\n" "${duplicate_classlist[$i]}" >&2
+   done
+
+   printf \
+"Please locate these files using "egrep -R 'class classname {' *" from the
+root of the puppet checkout.\n"
+
+   exit -1
+fi
+
+printf 'SUCCESS!\n'
+
+# Check for duplicate node regexes if nodes files have changed, or full force
+# mode is on.
+if $check_node_regex; then
+   printf "Checking for duplicate node regexes... "
+   for master in $puppet_masters; do
+      nodelist="$nodelist $(\
+               mysql -s \
+                     -D puppet \
+                     -u puppet \
+                     -p"${storedconfig_password}" \
+                     -h $master \
+                     -e "select name from hosts;" \
+               | cat \
+               )"
+   done
+
+   if [ -z "$nodelist" ]; then
+      printf 'FAIL! Unspecified Error retrieving nodes from database!\n' >&2
+      exit -1
+   fi
+
+   # Sort nodes to remove duplicates, which can happen if the databases are
+   # not maintained.
+   sorted_nodelist=$(echo $nodelist | sort -u)
+
+   for node_manifest in $puppetroot/$environment/manifests/nodes*; do
+      node_regex_list="$node_regex_list $(egrep -h '^node /' $node_manifest | cut -d'/' -f2)"
+   done
+
+   # This variable is so we can check how many total dupes there were
+   global_duplicates=0
+   for node in $sorted_nodelist; do
+      matches=""
+      matchcount=0
+      for node_regex in $node_regex_list; do
+         if [[ "$node" =~ $node_regex ]]; then
+            matches="$matches $node_regex"
+            matchcount=$((matchcount+1))
+         fi
+      done
+
+      if [ $matchcount -gt 1 ]; then
+         global_duplicates=$((global_duplicates+1))
+         printf "WARNING: %s matches multiple regexes:\n" "$node" >&2
+         for regex in $matches; do
+            printf "%s\n" "$regex"
+         done
+      fi
+   done
+
+   if [ $global_duplicates -gt 0 ]; then
+      printf "FAIL!\n%d duplicate node regexes found.\n" $global_duplicates >&2
+      exit -2
+   else
+      printf "SUCCESS!\n"
+   fi
+fi
+
+# Now we compile for compile-time errors
+
+# Cat changes files and look for classes
+printf 'Checking for compilation errors...\n'
+
+# Get changes that are applicable (puppet manifest changes only)
+pp_changes=$(\
+            for change in $changes; do
+               if [[ $change =~ .pp$ ]]; then
+                  printf "%s " "$change"
+               fi
+            done
+            )
+
+if [ -z "${pp_changes}" ]; then
+   printf "No puppet manifest changes to test for compilation errors, exiting!\n"
+   exit 0
+fi
+
+classes=$(\
+         cat $pp_changes \
+         | egrep -v '^[[:space:]]+?#' \
+         | egrep '^[[:space:]]+?class[[:space:]]+([[:alnum:]]|[-_:])+[[:space:]]+(inherits[[:space:]]+([[:alnum:]]|[-_:])+|.*)*({|\()' \
+         | awk -F' ' '{ print $2 }' \
+         )
+
+# Should have at least one server for a non-specific compile test
+servers="$puppet_masters"
+
+# Ensure fake ssldir is set up
+sudo mkdir -p /var/lib/puppet-test-$USER
+sudo rsync -r --delete $puppetroot/ssl/ /var/lib/puppet-test-$USER/ssl/
+sudo chown -R $USER /var/lib/puppet-test-$USER
+
+# Now we will find one host for each changed class to add to the list of
+# servers for testing compiled catalogs.
+for master in $puppet_masters; do
+   # First we sync facts as they are needed for catalog compilation testing
+   ssh ${master} "sudo mkdir /tmp/puppetyaml-$USER 2>/dev/null; sudo rsync -r /var/lib/puppet/yaml/ /tmp/puppetyaml-$USER/; sudo chmod -R 755 /tmp/puppetyaml-$USER"
+   sudo -E rsync -r ${USER}@${master}:/tmp/puppetyaml-$USER/ /var/lib/puppet-test-$USER/yaml/
+   ssh ${master} "sudo rm -rf /tmp/puppetyaml-$USER/*"
+
+   for class in $classes; do
+      # Get host id of a node that includes $class
+      host_id=$(\
+               mysql -s \
+                     -D puppet \
+                     -h $master \
+                     -u puppet \
+                     -p"${storedconfig_password}" \
+                     -e "select host_id from resources \
+                        where title = '$class' \
+                        and restype = 'class';" \
+               | cat \
+               | head -1 \
+               )
+
+      # Continue with next class if the host_id isn't valid (such as empty)
+      if [[ $host_id =~ [[:digit:]]+ ]]; then
+         :
+      else
+         continue
+      fi
+
+      # Get host_name from host_id
+      host_name=$(\
+                  mysql -s \
+                        -D puppet \
+                        -u puppet \
+                        -h $master \
+                        -p"${storedconfig_password}" \
+                        -e "select name from hosts where id = '$host_id';" \
+                  | cat \
+                 )
+
+      # If the server is already in the list to compile, don't add.
+      if echo $servers | grep -q $host_name; then
+         continue
+      fi
+
+      servers="$servers $host_name"
+   done
+done
+
+sudo parallel -P 4 \
+   "puppet master \
+   --config_version='cd $puppetroot; git rev-parse HEAD' \
+   --color=false \
+   --no-daemonize \
+   -l console \
+   --confdir=$puppetroot \
+   --manifest=$puppetroot/$environment/manifests/site.pp \
+   --modulepath=$(ls -d $puppetroot/$environment/*-modules | tr ' ' ':') \
+   --ssldir=/var/lib/puppet-test-$USER/ssl \
+   --vardir=/var/lib/puppet-test-$USER \
+   --compile {} \
+   | egrep \"^(err|notice|warning|Fail)\"" \
+   ::: $servers \
+| tee $compile_failure_log
+
+if egrep -q '^(err|Fail)' "$compile_failure_log"; then
+    printf 'Compilation errors, please fix.\n' >&2
+    rm -f "$compile_failure_log"
+    exit -1
+else
+    printf "Changed catalogs compiled successfully.\n"
+    rm -f "$compile_failure_log"
+    exit 0
+fi
+
+#vim: set expandtab ts=3 sw=3:
