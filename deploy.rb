@@ -1,10 +1,12 @@
 # Configuration Variables. Please note that you must have a site.pp with the
 # set of variables expected to be set by the GRUMPS setup.
 set :local_checkout,          "#{ENV['HOME']}/working/git/puppet"
-set :organization_name,       `grep '$organization_name' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{print $NF}')`
+set :organization_name,       %x[grep '$organization_name' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{ print $NF }' | tr -d '"'].chomp
+set :organization_github,     %x[grep '$organization_github' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{ print $NF }' | tr -d '"'].chomp
+set :organization_tld,        %x[grep '$organization_tld' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{ print $NF }' | tr -d '"'].chomp
 
-set :admin_group,             `grep '$admin_group' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{print $NF}')`
-set :admin_group_gid,         `grep '$admin_group_gid' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{print $NF}')`
+set :admin_group,             %x[grep '$admin_group' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{ print $NF }' | tr -d '"'].chomp
+set :admin_group_gid,         %x[grep '$admin_group_gid' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{ print $NF }' | tr -d '"'].chomp
 set :app_user,                "puppet"
 set :application,             "puppet"
 set :copy_exclude,            [ ".git" ]
@@ -13,12 +15,12 @@ set :deploy_to,               "/usr/local/puppet"
 set :deploy_via,              "remote_cache"
 set :git_enable_submodules,   1
 set :keep_releases,           5
-set :notification_email,      `grep '$admin_group_email' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{print $NF}')`
-set :repo_host,               "packages.#{organization_name}.com"
-set :repo_pkg_url,            "http://packages.#{organization_name}.com/centos/6/x86_64/repo-6-1.noarch.rpm"
+set :notification_email,      %x[grep '$admin_group_email' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{ print $NF }' | tr -d '"'].chomp
+set :repo_host,               "packages.#{organization_tld}"
+set :repo_pkg_url,            "http://packages.#{organization_tld}/centos/6/x86_64/repo-6-1.noarch.rpm"
 set :repository,              "ssh://git@github.com/#{organization_github}/puppet"
 set :scm,                     "git"
-set :storedconfig_password,   `grep '$organization_name' #{local_checkout}/production/manifests/site.pp | awk -F' ' '{print $NF}')`
+set :storedconfig_password,   %x[grep dbpassword #{local_checkout}/puppet.conf | awk -F' ' '{ print $NF }'].chomp
 set :use_sudo,                "true"
 set :use_storeconfigs,        "true"
 
@@ -27,7 +29,7 @@ ssh_options[:forward_agent] = true
 
 # Role for deployment
 role :puppet_masters,
-   "puppet.#{organization_name}.com"
+   "puppet.#{organization_tld}"
 
 # Task to run after everything is done. This runs every time.
 task :afterparty do
@@ -90,7 +92,7 @@ task :notify do
    class NotificationMailer < ActionMailer::Base
       def deployment(application, message, notification_email)
          mail(
-            :from    => "#{Etc.getpwnam(ENV['USER']).gecos} <#{ENV['USER']}@#{organization_name}.com>",
+            :from    => "#{Etc.getpwnam(ENV['USER']).gecos} <#{ENV['USER']}@#{organization_tld}>",
             :to      => notification_email,
             :subject => "Puppet Deployment - #{Time.now.to_s}",
             :body    => message

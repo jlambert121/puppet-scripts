@@ -72,9 +72,9 @@ environment="staging"
 error_msg=$(mktemp /tmp/error_msg.XXXXXX)
 force="false"
 fullforce="false"
-puppet_masters="puppet.$(hostname -f | awk -F'.' '{ print $(NF-1)"."$NF }')"
 puppetroot="$HOME/working/git/puppet"
-storedconfig_password="$(grep dbpassword $puppetroot/puppet.conf | awk -F' ' '{print $NF}')"
+puppet_masters="puppet.$(grep '$organization_tld' $puppetroot/production/manifests/site.pp | awk -F' ' '{ print $NF }' | tr -d '"')"
+storedconfig_password="$(grep dbpassword $puppetroot/puppet.conf | awk -F' ' '{ print $NF }')"
 syntax_errors=0
 vcs=""
 
@@ -564,7 +564,7 @@ sudo parallel -P 4 \
    -l console \
    --confdir=$puppetroot \
    --manifest=$puppetroot/$environment/manifests/site.pp \
-   --modulepath=$(ls -d $puppetroot/$environment/*-modules | tr ' ' ':') \
+   --modulepath=$(ls -d $puppetroot/$environment/*-modules | tr '\n' ':') \
    --ssldir=/var/lib/puppet-test-$USER/ssl \
    --vardir=/var/lib/puppet-test-$USER \
    --compile {} \
