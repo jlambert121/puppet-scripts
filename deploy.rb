@@ -90,9 +90,9 @@ task :notify do
    }
 
    class NotificationMailer < ActionMailer::Base
-      def deployment(application, message, notification_email)
+      def deployment(application, message, notification_email, from_domain)
          mail(
-            :from    => "#{Etc.getpwnam(ENV['USER']).gecos} <#{ENV['USER']}@#{organization_tld}>",
+            :from    => "#{Etc.getpwnam(ENV['USER']).gecos} <#{ENV['USER']}@#{from_domain}>",
             :to      => notification_email,
             :subject => "Puppet Deployment - #{Time.now.to_s}",
             :body    => message
@@ -122,7 +122,7 @@ task :notify do
       message << 'Previous revision not available'
    end
 
-   mail = NotificationMailer.deployment(application, message, notification_email)
+   mail = NotificationMailer.deployment(application, message, notification_email, organization_tld)
    mail.deliver
 end
 
