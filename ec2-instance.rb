@@ -36,6 +36,9 @@
 #
 # == Notes
 #
+# * Volume Size not currently working as of 2012-03-04.
+# I'm fairly certain I tested this feature. Not sure what happened.
+#
 # * Node Names
 # After all the -arguments, you can list N nodes. See examples below. This
 # hostname setting is done via rc.local on the boxes selecting from the
