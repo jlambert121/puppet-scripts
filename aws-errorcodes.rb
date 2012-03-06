@@ -18,12 +18,13 @@
 # Licensed under the BSD license
 #
 
-EREGIONNOTFOUND = 101
-ECFGFORMAT = 102
-ECFGREAD = 106
-ENOHOSTS = 103
-ENOIMAGEID = 104
-ENOSECGROUP = 105
-EUNKNOWN = 201
+EREGIONNOTFOUND         = 101
+ECFGFORMAT              = 102
+ENOHOSTS                = 103
+ENOIMAGEID              = 104
+ENOSECGROUP             = 105
+ECFGREAD                = 106
+ENONODES                = 107
+EUNKNOWN                = 201
 
 #vim: set expandtab ts=3 sw=3:
