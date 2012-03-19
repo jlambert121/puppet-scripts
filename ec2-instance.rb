@@ -36,9 +36,6 @@
 #
 # == Notes
 #
-# * Volume Size not currently working as of 2012-03-04.
-# I'm fairly certain I tested this feature. Not sure what happened.
-#
 # * Node Names
 # After all the -arguments, you can list N nodes. See examples below. This
 # hostname setting is done via rc.local on the boxes selecting from the
@@ -126,7 +123,7 @@ puppetize = false
 region = "us-east-1"
 securitygroup = ""
 startthreads = 2
-volumesize = 24
+volumesize = 8
 
 # Parse Options (1.8 style)
 begin
@@ -286,12 +283,14 @@ if failed_instances.size > 0
 end
 
 sleep 15
-puts "The following instances are running and will now be Puppetized:"
+puts "The following instances are running:"
 running_instances.each do |i|
    puts "#{i.user_data},#{i.ip_address}"
 end
 
 if puppetize == true
+   puts "Puppetizing nodes..."
+
    # Add new nodes to local /etc/hosts
    File.open("/etc/hosts", "a") do |hostsfile|
       running_instances.each do |i|
@@ -308,7 +307,12 @@ if puppetize == true
    running_instances.size.times do
       running_instances.each do |i|
          ppthreadarray << Thread.new {
-            sleep 90
+            sleep 15
+
+            if volumesize > 8
+               `ssh #{i.user_data} 'sudo resize2fs -f /dev/sda1'`
+            end
+
             `./sendkey.sh new #{i.user_data}`
          }
       end
