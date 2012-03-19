@@ -126,7 +126,7 @@ puppetize = false
 region = "us-east-1"
 securitygroup = ""
 startthreads = 2
-volumesize = 8
+volumesize = 24
 
 # Parse Options (1.8 style)
 begin
