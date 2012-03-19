@@ -34,7 +34,7 @@ role :puppet_masters,
 # Task to run after everything is done. This runs every time.
 task :afterparty do
    run "if [ ! -d /etc/#{application} ]; then sudo -u root mkdir /etc/#{application}; fi"
-   run "sudo -u root rsync --exclude='tagmail.conf' --delete -cvrP --no-o --no-g --no-p #{deploy_to}/current/ /etc/#{application}/"
+   run "sudo -u root rsync --exclude='tagmail.conf' --delete -clvrP --no-o --no-g --no-p #{deploy_to}/current/ /etc/#{application}/"
    run "sudo -u root chown -R root:#{app_user} /etc/#{application}; sudo -u root find /etc/#{application} -type d -name 'lib' -prune -o -type d -exec chmod 750 {} \\; && sudo chmod -R g+r /etc/#{application}"
    run "sudo -u root find /etc/#{application} -type d -name 'lib/*' -exec chmod -R 755 {} \\;"
    run "sudo -u root chmod -R g+w #{deploy_to}/shared/cached-copy"
