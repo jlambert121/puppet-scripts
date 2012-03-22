@@ -44,6 +44,7 @@ require 'getoptlong'
 require 'rdoc/usage'
 require 'net/http'
 require 'net/ssh'
+require 'resolv'
 
 # Show usage if no args are passed.
 if ARGV.size == 0
@@ -154,7 +155,12 @@ runstages.each_with_index do |stage,index|
       print "#{action.capitalize}ing #{node.user_data}... "
 
       begin
-         node.send(action.to_sym)
+         node.send action.to_sym
+
+         if action == "start"
+            node.associate_elastic_ip Resolv.getaddress(node.user_data)
+         end
+
          puts "SUCCESS"
       rescue => e
          STDERR.puts "FAILURE: #{$!}: #{e}"
