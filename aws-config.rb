@@ -18,7 +18,7 @@
 # Licensed under the BSD license
 #
 
-require 'aws-errorcodes'
+require "#{File.dirname(__FILE__)}/aws-errorcodes"
 require 'rubygems'
 require 'yaml'
 require 'aws-sdk'
