@@ -158,7 +158,12 @@ runstages.each_with_index do |stage,index|
          node.send action.to_sym
 
          if action == "start"
-            node.associate_elastic_ip Resolv.getaddress(node.user_data)
+            resolver ||= Resolv::DNS.new(
+               :nameserver => ['8.8.8.8','8.8.4.4'],
+               :ndots => 1
+            )
+
+            node.associate_elastic_ip resolver.getaddress(node.user_data)
          end
 
          puts "SUCCESS"
