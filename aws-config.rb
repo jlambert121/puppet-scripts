@@ -25,7 +25,7 @@ require 'aws-sdk'
 
 # Load AWS config
 begin
-   config = YAML.load(File.read("config.yml"))
+   config = YAML.load(File.read("#{File.dirname(__FILE__)}/config.yml"))
 rescue => e
    STDERR.puts "Error loading YAML config: #{e}"
    exit ECFGREAD
