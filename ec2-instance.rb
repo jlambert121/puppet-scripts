@@ -278,7 +278,7 @@ until ARGV.size == 0 or threads.size == original_argvsize do
 
       # Set autocontrol tag which is used by envctl script to tell whether or
       # not a given node should be stopped.
-      instance.tag(key = "autocontrol" options = { :value => autocontrol })
+      instance.tag(key = "autocontrol", options = { :value => autocontrol })
 
       running_instances << instance unless instance.status != :running
 
