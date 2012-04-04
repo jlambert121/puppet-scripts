@@ -4,6 +4,11 @@
 #
 # == Usage
 #
+# --autocontrol (-a)
+#   Set the autocontrol tag to true/false, which is used by the envctl script
+#   to determine whether or not it is appropriate to start/stop a node when
+#   doing whole environment stop/starts.
+#
 # --help (-h)
 #   Show this help
 #
@@ -115,6 +120,7 @@ if ARGV.size == 0
 end
 
 # Argument Defaults
+autocontrol = "true"
 environmenttag = ""
 imageid = ""
 instancetype = "m1.large"
@@ -128,6 +134,7 @@ volumesize = 8
 # Parse Options (1.8 style)
 begin
    opts = GetoptLong.new(
+      [ '--autocontrol',   '-a',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--help',          '-h',    GetoptLong::NO_ARGUMENT       ],
       [ '--imageid',       '-m',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--instancetype',  '-i',    GetoptLong::REQUIRED_ARGUMENT ],
@@ -141,6 +148,8 @@ begin
 
    opts.each do |opt, arg|
       case opt
+         when '--autocontrol'
+            autocontrol = arg
          when '--help'
             RDoc::usage
          when '--imageid'
@@ -266,6 +275,10 @@ until ARGV.size == 0 or threads.size == original_argvsize do
       # a security group is weak sauce, and environment is just a good thing
       # to be able to query for regardless.
       instance.tag(key = "environment", options = { :value => environmenttag })
+
+      # Set autocontrol tag which is used by envctl script to tell whether or
+      # not a given node should be stopped.
+      instance.tag(key = "autocontrol" options = { :value => autocontrol })
 
       running_instances << instance unless instance.status != :running
 

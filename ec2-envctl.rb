@@ -100,6 +100,7 @@ end
 
 ec2 = AWS::EC2.new
 nodes = ec2.instances.tagged("environment").tagged_values(env)
+nodes = nodes.tagged("autocontrol").tagged_values("true")
 
 # If this happens, likely invalid env passed to --env (-e)
 if nodes.count == 0
