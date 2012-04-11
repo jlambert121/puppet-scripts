@@ -68,7 +68,7 @@ task :enum_hosts, :roles => [:puppet_db] do
         role("all_hosts", host)
 
         # Puppet masters
-        if host =~ /^puppet\..*$/ role("puppet_masters", host) end
+        if host =~ /^puppet\..*$/ then role("puppet_masters", host) end
 
         # Environment roles for all hosts
         if host =~ /-staging\..*$/
