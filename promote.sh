@@ -51,7 +51,11 @@ function die() {
 function list_pending_promotions() {
    pushd $puppetroot >/dev/null 2>&1
 
-   read -p "Update checkout? (y/N) " answer
+   if [ "$FORCE" != "true" ]; then
+      read -p "Update checkout? (y/N) " answer
+   else
+      answer="N"
+   fi
 
    if [ "$answer" != "y" -a "$answer" != "Y" ]; then
       printf "Be warned, data might be innaccurate if you are not up to date.\n"
@@ -62,7 +66,20 @@ function list_pending_promotions() {
 
    printf "Show pending changes...\n\n"
    printf "========================================\n"
-   git submodule --quiet foreach 'if [[ $path =~ ^production.* ]]; then printf "%s:\n\n" "$(basename $name)"; changes=$(git checkout develop 2>/dev/null; git cherry -v master | egrep "^\+" | sed "s/^+ //"; git checkout master 2>/dev/null); if [ -z "$changes" ]; then printf "No pending commits.\n"; else printf "%s\n" "$changes"; fi; printf "========================================\n"; fi'
+
+   # If no specific commit passed with -C, list pending promotions. If verbose
+   # passed to function, all diffs listed. Lastly, if you used -C, we will only
+   # spit out the diff of the specified commit.
+   if [ -z "$SPECIFIC_COMMIT" ]; then
+      if [ "$1" != "verbose" ]; then
+         git submodule --quiet foreach 'if [[ $path =~ ^production.* ]]; then printf "%s:\n\n" "$(basename $name)"; changes=$(git checkout develop 2>/dev/null; git cherry -v master | egrep "^\+" | sed "s/^+ //"; git checkout master 2>/dev/null); if [ -z "$changes" ]; then printf "No pending commits.\n"; else printf "%s\n" "$changes"; fi; printf "========================================\n"; fi'
+      else
+         git submodule --quiet foreach 'if [[ $path =~ ^production.* ]]; then printf "%s:\n\n" "$(basename $name)"; changes=$(git checkout develop 2>/dev/null; git cherry -v master | egrep "^\+" | sed "s/^+ //" | cut -d" " -f1 | xargs git show; git checkout master 2>/dev/null); if [ -z "$changes" ]; then printf "No pending commits.\n"; else printf "%s\n" "$changes"; fi; printf "========================================\n"; fi'
+      fi
+   else
+      git submodule --quiet foreach 'if [[ $path =~ ^production.* ]]; then printf "%s:\n\n" "$(basename $name)"; changes=$(git checkout develop 2>/dev/null; git cherry -v master | egrep "^\+" | sed "s/^+ //" | cut -d" " -f1 | grep "$SPECIFIC_COMMIT" | xargs git show; git checkout master 2>/dev/null); if [ -z "$changes" ]; then printf "No pending commits.\n"; else printf "%s\n" "$changes"; fi; printf "========================================\n"; fi'
+   fi
+
    popd $puppetroot >/dev/null 2>&1
 }
 
@@ -75,8 +92,11 @@ function usage() {
    printf "   -l  List all commits that master needs in all submodules. Make sure\n"
    printf "       your checkout is up to date if you run this, otherwise results may\n"
    printf "       be inaccurate.\n"
+   printf "   -L  Same as -l except show full diffs rather than sha and comment\n"
+   printf "   -C  If you use this in conjunction with -L, you will get only the given\n"
+   printf "       SHA's diff."
    printf "   -c  Cherry pick the commit given as the argument to this switch\n"
-   printf "   -f  Force mode- this will bypass the prompt when promoting all of staging\n"
+   printf "   -f  FORCE mode- this will bypass the prompt when promoting all of staging\n"
    printf "   -h  Print this message\n"
    printf "   -m  This is required if you use -c; it is the submodule directory name\n"
    printf "   -M  This overrides the default commit message with whatever you specify\n"
@@ -85,25 +105,36 @@ function usage() {
    printf "   %s -c d4cb267 -m manifests\n\n" "$(basename $0)"
    printf "This will cherry-pick commit d4cb267 from the manifests submodule.\n"
    printf "\n"
+   printf "Example 2:\n"
+   printf "   %s -f -C 5062ff83af0d6c51101e8daeb710b32ad1869ebe -l\n\n" "$(basename $0)"
+   printf "This will show a diff of the given revision. Useful for CR or ticketing.\n"
+   printf "\n"
    printf "Passing no arguments to this script will promote the entire staging env to\n"
    printf "production.\n"
 
    exit $1
 }
 
-while getopts c:lfm:M:h option; do
+while getopts c:C:lLfm:M:h option; do
    case "$option" in
       c)
          export COMMIT="$OPTARG"
       ;;
+      C)
+         export SPECIFIC_COMMIT="$OPTARG"
+      ;;
       f)
-         force="true"
+         export FORCE="true"
       ;;
       h)
          usage 0
       ;;
       l)
          list_pending_promotions
+         exit 0
+      ;;
+      L)
+         list_pending_promotions verbose
          exit 0
       ;;
       m)
@@ -149,8 +180,8 @@ if [ -n "$COMMIT" ]; then
    fi
 fi
 
-# Force mode in case the script is being used in a batch fashion.
-if [ "$force" != "true" -a -z "$COMMIT" ]; then
+# FORCE mode in case the script is being used in a batch fashion.
+if [ "$FORCE" != "true" -a -z "$COMMIT" ]; then
    read -p "Are you sure you want to promote the entire staging environment? (y/N) " answer
 
    if [ "$answer" != "y" -a "$answer" != "Y" ]; then
