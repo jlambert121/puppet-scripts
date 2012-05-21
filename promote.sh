@@ -94,7 +94,7 @@ function usage() {
    printf "       be inaccurate.\n"
    printf "   -L  Same as -l except show full diffs rather than sha and comment\n"
    printf "   -C  If you use this in conjunction with -L, you will get only the given\n"
-   printf "       SHA's diff."
+   printf "       SHA's diff.\n"
    printf "   -c  Cherry pick the commit given as the argument to this switch\n"
    printf "   -f  FORCE mode- this will bypass the prompt when promoting all of staging\n"
    printf "   -h  Print this message\n"
