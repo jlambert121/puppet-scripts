@@ -302,6 +302,7 @@ after "deploy:rollback", :afterparty
 before "deploy", "deploy:cleanup"
 before "deploy:cleanup", :lock_deploys
 after "deploy", :notify
+after "deploy:rollback", :notify
 before "notify", :unlock_deploys
 after "notify", :gendocs
 

@@ -83,39 +83,6 @@ Capistrano::Configuration.instance(:must_exist).load do
     set :dependencies, deps
   end
 
-  # Override deploy! to do some submodule branch stuff
-  #module Capistrano
-  #  module Deploy
-  #    module Strategy
-  #      class RemoteCache < Remote
-  #        def deploy!
-  #          update_repository_cache
- # 
- #           # This will make sure the proper branches are used in the submodules
- #           logger.info "Ensuring staging sub-modules are using proper develop branches..."
- # 
- #           devmodules = capture("ls -d #{shared_path}/cached-copy/staging/*")
- #           devmodules = devmodules.split("\n")
- #           devmodules.each do |devmod|
- #             run "cd  #{devmod}; git checkout develop; git pull; cd -"
- #           end
- # 
- #           logger.info "Ensuring production sub-modules are using proper master branches..."
- # 
- #           prodmodules = capture("ls -d #{shared_path}/cached-copy/production/*")
- #           prodmodules = prodmodules.split("\n")
- #           prodmodules.each do |prodmod|
- #             run "cd #{prodmod}; git checkout master; git pull; cd -"
- #           end
- # 
- #           copy_repository_cache
- #         end
- #       end
-#
-#      end
- #   end
- # end
-  
   # Temporarily sets an environment variable, yields to a block, and restores
   # the value when it is done.
   def with_env(name, value)
