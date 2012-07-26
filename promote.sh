@@ -5,7 +5,8 @@
 # the changes to the production environment. Note that you can promote single
 # commits by using the cherry-pick (-c) functionality. If you use cherry pick
 # you must pass a modulename, ie 'grumps-modules' or 'manifests', with the -m
-# switch
+# switch. You can also promote sets of changes related to a ticket, as long
+# as the developer remembers to put the ticket number in the commit message.
 #
 # == Usage
 # See usage() function below
@@ -61,20 +62,30 @@ function list_pending_promotions() {
       printf "Be warned, data might be innaccurate if you are not up to date.\n"
    else
       printf "Ensure checkout is updated...\n"
-      scripts/updatecheckout.sh
+      scripts/updatecheckout.sh >/dev/null 2>&1 || die "Error running updatecheckout.sh!"
    fi
 
-   printf "Show pending changes...\n\n"
-   printf "========================================\n"
+   if ! [ -n "$TICKET" -a "$1" != "verbose" ]; then
+      printf "Show pending changes...\n\n"
+      printf "========================================\n"
+   fi
 
    # If no specific commit passed with -C, list pending promotions. If verbose
-   # passed to function, all diffs listed. Lastly, if you used -C, we will only
-   # spit out the diff of the specified commit.
-   if [ -z "$SPECIFIC_COMMIT" ]; then
+   # passed to function, all diffs listed. Then, if you passed a ticket, list
+   # pending promotions related to ticket, and if verbose list related diffs.
+   # Lastly, if you used -C, we will only spit out the diff of the specified
+   # commit if you specified a commit.
+   if [ -z "$SPECIFIC_COMMIT" -a -z "$TICKET" ]; then
       if [ "$1" != "verbose" ]; then
          git submodule --quiet foreach 'if [[ $path =~ ^production.* ]]; then printf "%s:\n\n" "$(basename $name)"; changes=$(git checkout develop 2>/dev/null; git cherry -v master | egrep "^\+" | sed "s/^+ //"; git checkout master 2>/dev/null); if [ -z "$changes" ]; then printf "No pending commits.\n"; else printf "%s\n" "$changes"; fi; printf "========================================\n"; fi'
       else
          git submodule --quiet foreach 'if [[ $path =~ ^production.* ]]; then printf "%s:\n\n" "$(basename $name)"; changes=$(git checkout develop 2>/dev/null; git cherry -v master | egrep "^\+" | sed "s/^+ //" | cut -d" " -f1 | xargs git show; git checkout master 2>/dev/null); if [ -z "$changes" ]; then printf "No pending commits.\n"; else printf "%s\n" "$changes"; fi; printf "========================================\n"; fi'
+      fi
+   elif [ -n "$TICKET" ]; then
+      if [ "$1" != "verbose" ]; then
+         git submodule --quiet foreach 'if [[ $path =~ ^production.* ]]; then changes=$(git checkout develop 2>/dev/null; git cherry -v master | grep "#${TICKET}" | egrep "^\+" | sed "s/^+ //" | sed "s/^/$(basename $name) /"; git checkout master 2>/dev/null); if [ -n "$changes" ]; then printf "%s\n" "$changes"; fi; fi'
+      else
+         git submodule --quiet foreach 'if [[ $path =~ ^production.* ]]; then printf "%s:\n\n" "$(basename $name)"; changes=$(git checkout develop 2>/dev/null; git cherry -v master | grep "#${TICKET}" | egrep "^\+" | sed "s/^+ //" | cut -d" " -f1 | xargs git show; git checkout master 2>/dev/null); if [ -z "$changes" ]; then printf "No pending commits.\n"; else printf "%s\n" "$changes"; fi; printf "========================================\n"; fi'
       fi
    else
       git submodule --quiet foreach 'if [[ $path =~ ^production.* ]]; then printf "%s:\n\n" "$(basename $name)"; changes=$(git checkout develop 2>/dev/null; git cherry -v master | egrep "^\+" | sed "s/^+ //" | cut -d" " -f1 | grep "$SPECIFIC_COMMIT" | xargs git show; git checkout master 2>/dev/null); if [ -z "$changes" ]; then printf "No pending commits.\n"; else printf "%s\n" "$changes"; fi; printf "========================================\n"; fi'
@@ -97,9 +108,12 @@ function usage() {
    printf "       SHA's diff.\n"
    printf "   -c  Cherry pick the commit given as the argument to this switch\n"
    printf "   -f  FORCE mode- this will bypass the prompt when promoting all of staging\n"
-   printf "   -h  Print this message\n"
    printf "   -m  This is required if you use -c; it is the submodule directory name\n"
    printf "   -M  This overrides the default commit message with whatever you specify\n"
+   printf "   -t  Specify a ticket number as an argument to this. Note that you can use\n"
+   printf "       this in conjunction with -L to get all the diffs related to a ticket,\n"
+   printf "       or you can use it with -c to promote all changes related to a ticket.\n"
+   printf "   -h  Print this message\n"
    printf "\n"
    printf "Example:\n"
    printf "   %s -c d4cb267 -m manifests\n\n" "$(basename $0)"
@@ -115,8 +129,11 @@ function usage() {
    exit $1
 }
 
-while getopts c:C:lLfm:M:h option; do
+while getopts c:C:lLfm:M:t:h option; do
    case "$option" in
+      h)
+         usage 0
+      ;;
       c)
          export COMMIT="$OPTARG"
       ;;
@@ -126,16 +143,11 @@ while getopts c:C:lLfm:M:h option; do
       f)
          export FORCE="true"
       ;;
-      h)
-         usage 0
-      ;;
       l)
-         list_pending_promotions
-         exit 0
+         export LIST_PENDING="true"
       ;;
       L)
-         list_pending_promotions verbose
-         exit 0
+         export LIST_PENDING_VERBOSE="true"
       ;;
       m)
          export MODULE="$OPTARG"
@@ -143,22 +155,69 @@ while getopts c:C:lLfm:M:h option; do
       M)
          export MESSAGE="$OPTARG"
       ;;
+      t)
+         export TICKET="$OPTARG"
+      ;;
       *)
          perror "Passing bad arguments"
          usage -1
    esac
 done
 
-if [ -n "$MODULE" -a -z "$COMMIT" ]; then
-   perror "You passed -m but did not pass -c, you need both."
+# If you wanted to list AND list verbose, print error, verbose wins.
+if [ "$LIST_PENDING" == "true" -a "$LIST_PENDING_VERBOSE" == "true" ]; then
+   perror "You passed both -l and -L; -L takes precedence"
+fi
+
+# If ticket specified, ensure it is a number. When LH API gets used, could
+# even check if the ticket is valid.
+if [ -n "$TICKET" ]; then
+   if ! echo "$TICKET" | egrep -q '^[[:digit:]]+$'; then
+      die "You specified a garbage string for a ticket number: $TICKET"
+   fi
+fi
+
+# Check for logical errors when parsing args.
+# Passing a module but no ticket or commit.
+if [ -n "$MODULE" -a -z "$COMMIT" -a -z "$TICKET" ]; then
+   perror "You passed -m but did not pass -c or -t, you need both."
    usage -10
 fi
 
+# Passing a commit but no module
 if [ -z "$MODULE" -a -n "$COMMIT" ]; then
-   perror "You passed -c but did not pass -m, you need both."
+   perror "You passed -c or -t, but did not pass -m, you need both."
    usage -20
 fi
 
+# Passing a ticket and a commit, fail... this is very important, as a lot of
+# subsequent logic relies on this test failing execution before its reached.
+if [ -n "$COMMIT" -a -n "$TICKET" ]; then
+   perror "You passed both a ticket (-t), AND a commit (-c). Use one or the other."
+   usage -21
+fi
+
+# Previous test for cherry picking (-c) and ticket (-t) failure. This test
+# ensures that for listing promotions, you don't pass -C and -t, which doesn't
+# make sense.
+if [ -n "$SPECIFIC_COMMIT" -a -n "$TICKET" ]; then
+   perror "You passed both a ticket (-t), and a commit SHA to cherry-pick (-C)."
+   usage -22
+fi
+
+# Call list functions and quit if options passed
+if [ "$LIST_PENDING_VERBOSE" == "true" ]; then
+   list_pending_promotions verbose
+   exit 0
+fi
+
+if [ "$LIST_PENDING" == "true" ]; then
+   list_pending_promotions
+   exit 0
+fi
+
+# This check seems off, but it will pass if no module is entered, and
+# will fail if an erroneous module is passed.
 if [ ! -e "production/$MODULE" ]; then
    die "The module $MODULE does not exist!"
 fi
@@ -181,7 +240,7 @@ if [ -n "$COMMIT" ]; then
 fi
 
 # FORCE mode in case the script is being used in a batch fashion.
-if [ "$FORCE" != "true" -a -z "$COMMIT" ]; then
+if [ "$FORCE" != "true" -a -z "$COMMIT" -a -z "$TICKET" ]; then
    read -p "Are you sure you want to promote the entire staging environment? (y/N) " answer
 
    if [ "$answer" != "y" -a "$answer" != "Y" ]; then
@@ -195,7 +254,11 @@ if [ -z "$MESSAGE" -a -n "$COMMIT" ]; then
    MESSAGE="Promote commit $COMMIT in submodule $MODULE from staging to production"
 fi
 
-if [ -z "$MESSAGE" -a -z "$COMMIT" ]; then
+if [ -z "$MESSAGE" -a -n "$TICKET" ]; then
+   MESSAGE="Promote all commits related to ticket [$TICKET] from staging to production"
+fi
+
+if [ -z "$MESSAGE" -a -z "$COMMIT" -a -z "$TICKET" ]; then
    MESSAGE="Promote all of staging to production."
 fi
 
@@ -203,11 +266,29 @@ fi
 pushd $puppetroot >/dev/null 2>&1
 
 # Make sure everything is up to date.
-scripts/updatecheckout.sh
+printf "Updating Checkout...\n"
+scripts/updatecheckout.sh >/dev/null 2>&1 || die "Error running updatecheckout.sh!"
 
 # Do the actual merging or cherry-picking into production and push
-if [ -z "$COMMIT" ]; then
-   git submodule foreach --quiet 'if [[ $path =~ ^production.* ]]; then git checkout develop && git pull && git checkout master && git merge develop && git push; fi'
+if [ -z "$COMMIT" -a -z "$TICKET" ]; then
+   git submodule foreach --quiet 'if [[ $path =~ ^production.* ]]; then git checkout develop && git pull && git checkout master && git merge -m "$MESSAGE" develop && git push; fi'
+elif [ -n "$TICKET" ]; then
+   # Get space-separated list of commits related to ticket number
+   export PENDING_PROMOTIONS=$(FORCE=true list_pending_promotions | sed 1d)
+
+   # FORCE mode in case the script is being used in a batch fashion.
+   if [ "$FORCE" != "true" ]; then
+      printf "This operation will promote %d commits:\n\n%s\n\n" "$(echo "$PENDING_PROMOTIONS" | wc -l)" "$PENDING_PROMOTIONS"
+
+      read -p "Are you sure you want to promote all commits associated with ticket $TICKET? (y/N) " answer
+
+      if [ "$answer" != "y" -a "$answer" != "Y" ]; then
+         die "Did not confirm multi-commit promotion, exiting." -5
+      fi
+   fi
+
+   # In each submodule, Grep PENDING_PROMOTIONS for current submodule, cherry-pick all of field 2
+   git submodule foreach --quiet 'if [[ $name =~ ^production ]]; then export COMMITS=$(echo "$PENDING_PROMOTIONS" | grep "$(basename $name)" | cut -d" " -f2 | tr "\n" " "); git checkout develop && git pull && git checkout master && git cherry-pick $COMMITS && git push; fi'
 else
    git submodule foreach --quiet 'if [ "$name" == "production/$MODULE" ]; then git checkout develop && git pull && git checkout master && git cherry-pick $COMMIT && git push; fi'
 fi
