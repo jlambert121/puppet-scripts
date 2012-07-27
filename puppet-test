@@ -567,8 +567,10 @@ sudo parallel -P 4 \
    --modulepath=$(ls -d $puppetroot/$environment/*-modules | tr '\n' ':') \
    --ssldir=/var/lib/puppet-test-$USER/ssl \
    --vardir=/var/lib/puppet-test-$USER \
-   --compile {} \
-   | egrep \"^(err|notice|warning|Fail)\"" \
+   --compile {} 2>&1 \
+   | egrep \"^(err|notice|warning|Fail)\" \
+   | gsed \"/getinfo\.rb\:18\: warning\: multiple values for a block parameter/,+1d\" \
+   | egrep -v \"Failed to parse inline template: undefined method .tr. for :undefined:Symbol at .*/manifests/site.pp:11 on node \"" \
    ::: $servers \
 | tee $compile_failure_log
 
