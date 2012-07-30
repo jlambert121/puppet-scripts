@@ -296,7 +296,8 @@ else
 fi
 
 printf "Running puppet-test, output will go in commit message... "
-MESSAGE=$(printf '%s\n\n%s' "$MESSAGE" "$($puppetroot/scripts/puppet-test -d -e staging)")
+MESSAGE=$(printf '%s\n\n%s\n%s:\n\n%s\n%s' "$MESSAGE" "===============================================================================" "Puppet Tests for Testing Environment" "$($puppetroot/scripts/puppet-test -d -e testing)" "===============================================================================")
+MESSAGE=$(printf '%s\n%s:\n\n%s\n%s' "$MESSAGE" "Puppet Tests for Staging Environment" "$($puppetroot/scripts/puppet-test -d -e staging)" "===============================================================================")
 
 if [ $? -eq 0 ]; then
    printf "SUCCESS!\n"
@@ -304,7 +305,7 @@ if [ $? -eq 0 ]; then
    git push
 else
    printf "FAILURE!\n"
-   printf "Please run puppet-test -d -e staging, fix the errors, then re-attempt promotion!\n"
+   printf "Please run puppet-test -d -e staging (and testing), fix the errors, then re-attempt promotion!\n"
 fi
 
 popd >/dev/null 2>&1
