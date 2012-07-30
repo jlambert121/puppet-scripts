@@ -531,8 +531,14 @@ for master in $puppet_masters; do
                   | head -1 \
                  )
 
-      # If the server is already in the list to compile, don't add.
-      if echo $servers | grep -q $host_name; then
+      # If there is no host_name, next, if host already in the list, then
+      # don't add.
+      if [ -z "$host_name" ]; then
+         printf "warning: No hosts found in environment %s for class %s\n" "$environment" "$class" >&2
+         continue
+      fi
+
+      if echo "$servers" | grep -q "$host_name"; then
          continue
       fi
 
