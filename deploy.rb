@@ -135,19 +135,19 @@ end
 task :testpuppet do
    logger.info "Running puppet-test pre-deploy..."
 
-   `#{local_checkout}/scripts/puppet-test -d -e testing!`
+   %x[#{local_checkout}/scripts/puppet-test -d -e testing]
 
    if $? != 0
       abort "puppet-test failed with -d -e testing!"
    end
 
-   `#{local_checkout}/scripts/puppet-test -d -e staging`
+   %x[#{local_checkout}/scripts/puppet-test -d -e staging]
 
    if $? != 0
       abort "puppet-test failed with -d -e staging!"
    end
 
-   `#{local_checkout}/scripts/puppet-test -d -e production`
+   %x[#{local_checkout}/scripts/puppet-test -d -e production]
 
    if $? != 0
       abort "puppet-test failed with -d -e production!"
