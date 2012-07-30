@@ -288,7 +288,7 @@ elif [ -n "$TICKET" ]; then
    fi
 
    # In each submodule, Grep PENDING_PROMOTIONS for current submodule, cherry-pick all of field 2
-   git submodule foreach --quiet 'if [[ $name =~ ^production ]]; then export COMMITS=$(echo "$PENDING_PROMOTIONS" | grep "$(basename $name)" | cut -d" " -f2 | tr "\n" " "); git checkout develop && git pull && git checkout master && git cherry-pick $COMMITS && git push; fi'
+   git submodule foreach --quiet 'if [[ $name =~ ^production ]]; then export COMMITS=$(echo "$PENDING_PROMOTIONS" | grep "$(basename $name)" | cut -d" " -f2 | tr "\n" " "); if [ -n "$COMMITS" ]; then git checkout develop && git pull && git checkout master && git cherry-pick $COMMITS && git push; fi; fi'
 else
    git submodule foreach --quiet 'if [ "$name" == "production/$MODULE" ]; then git checkout develop && git pull && git checkout master && git cherry-pick $COMMIT && git push; fi'
 fi
