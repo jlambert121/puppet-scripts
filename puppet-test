@@ -515,36 +515,20 @@ for master in $puppet_masters; do
    ssh ${master} "sudo rm -rf /tmp/puppetyaml-$USER/*"
 
    for class in $classes; do
-      # Get host id of a node that includes $class
-      host_id=$(\
-               mysql -s \
-                     -D puppet \
-                     -h $master \
-                     -u puppet \
-                     -p"${storedconfig_password}" \
-                     -e "select host_id from resources \
-                        where title = '$class' \
-                        and restype = 'class';" \
-               | cat \
-               | head -1 \
-               )
-
-      # Continue with next class if the host_id isn't valid (such as empty)
-      if [[ $host_id =~ [[:digit:]]+ ]]; then
-         :
-      else
-         continue
-      fi
-
-      # Get host_name from host_id
+      # Get a host that contains changed class in specified environment.
       host_name=$(\
                   mysql -s \
                         -D puppet \
                         -u puppet \
                         -h $master \
                         -p"${storedconfig_password}" \
-                        -e "select name from hosts where id = '$host_id';" \
+                        -e "SELECT name from hosts h, resources r \
+                            WHERE r.restype = 'Class' \
+                               AND r.title = '$class' \
+                               AND h.id = r.host_id \
+                               AND h.environment = '$environment';" \
                   | cat \
+                  | head -1 \
                  )
 
       # If the server is already in the list to compile, don't add.
