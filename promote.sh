@@ -61,8 +61,9 @@ function list_pending_promotions() {
    if [ "$answer" != "y" -a "$answer" != "Y" ]; then
       printf "Be warned, data might be innaccurate if you are not up to date.\n"
    else
-      printf "Ensure checkout is updated...\n"
-      scripts/updatecheckout.sh >/dev/null 2>&1 || die "Error running updatecheckout.sh!"
+      printf "Ensure checkout is updated... "
+      scripts/updatecheckout.sh >/dev/null 2>&1 || die "FAILURE! check updatecheckout.sh works!"
+      printf "SUCCESS!\n"
    fi
 
    if ! [ -n "$TICKET" -a "$1" != "verbose" ]; then
@@ -255,7 +256,7 @@ if [ -z "$MESSAGE" -a -n "$COMMIT" ]; then
 fi
 
 if [ -z "$MESSAGE" -a -n "$TICKET" ]; then
-   MESSAGE="Promote all commits related to ticket [$TICKET] from staging to production"
+   MESSAGE="Promote all commits related to ticket [#$TICKET] from staging to production"
 fi
 
 if [ -z "$MESSAGE" -a -z "$COMMIT" -a -z "$TICKET" ]; then
@@ -266,8 +267,9 @@ fi
 pushd $puppetroot >/dev/null 2>&1
 
 # Make sure everything is up to date.
-printf "Updating Checkout...\n"
-scripts/updatecheckout.sh >/dev/null 2>&1 || die "Error running updatecheckout.sh!"
+printf "Ensure checkout is updated... "
+scripts/updatecheckout.sh >/dev/null 2>&1 || die "FAILURE! check updatecheckout.sh works!"
+printf "SUCCESS!\n"
 
 # Do the actual merging or cherry-picking into production and push
 if [ -z "$COMMIT" -a -z "$TICKET" ]; then
@@ -293,8 +295,17 @@ else
    git submodule foreach --quiet 'if [ "$name" == "production/$MODULE" ]; then git checkout develop && git pull && git checkout master && git cherry-pick $COMMIT && git push; fi'
 fi
 
-git commit -am "$MESSAGE"
-git push
+printf "Running puppet-test, output will go in commit message... "
+MESSAGE=$(printf '%s\n\n%s' "$MESSAGE" "$($puppetroot/scripts/puppet-test -d -e staging)")
+
+if [ $? -eq 0 ]; then
+   printf "SUCCESS!\n"
+   git commit -am "$MESSAGE"
+   git push
+else
+   printf "FAILURE!\n"
+   printf "Please run puppet-test -d -e staging, fix the errors, then re-attempt promotion!\n"
+fi
 
 popd >/dev/null 2>&1
 #vim: set expandtab ts=3 sw=3:
