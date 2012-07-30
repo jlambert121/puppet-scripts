@@ -135,6 +135,12 @@ end
 task :testpuppet do
    logger.info "Running puppet-test pre-deploy..."
 
+   `#{local_checkout}/scripts/puppet-test -d -e testing!`
+
+   if $? != 0
+      abort "puppet-test failed with -d -e testing!"
+   end
+
    `#{local_checkout}/scripts/puppet-test -d -e staging`
 
    if $? != 0
