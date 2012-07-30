@@ -493,8 +493,8 @@ fi
 
 classes=$(\
          cat $pp_changes \
-         | egrep -v '^[[:space:]]+?#' \
-         | egrep '^[[:space:]]+?class[[:space:]]+([[:alnum:]]|[-_:])+[[:space:]]+(inherits[[:space:]]+([[:alnum:]]|[-_:])+|.*)*({|\()' \
+         | egrep -v '^[[:space:]]*#' \
+         | egrep '^[[:space:]]*class[[:space:]]+([[:alnum:]]|[-_:])+[[:space:]]+(inherits[[:space:]]+([[:alnum:]]|[-_:])+|.*)*({|\()' \
          | awk -F' ' '{ print $2 }' \
          )
 
