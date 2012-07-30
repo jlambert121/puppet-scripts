@@ -40,6 +40,10 @@ function perror() {
 # Print a fatal error and exit with exit code $2
 function die() {
    perror "$1"
+
+   # Unlock deploys now that we are dying
+   bypass_tests="true" cap unlock_deploys || perror "Unable to unlock deploys, please investigate."
+
    exit $2
 }
 
@@ -275,7 +279,7 @@ bypass_tests="true" lock_reason="$MESSAGE" cap lock_deploys || die "Error lockin
 
 # Do the actual merging or cherry-picking into production and push
 if [ -z "$COMMIT" -a -z "$TICKET" ]; then
-   git submodule foreach --quiet 'if [[ $path =~ ^production.* ]]; then git checkout develop && git pull && git checkout master && git merge -m "$MESSAGE" develop && git push; fi'
+   git submodule foreach --quiet 'if [[ $path =~ ^production.* ]]; then git checkout develop && git pull && git checkout master && git merge -m "$MESSAGE" develop && git push; fi' || die "It appears that the whole staging merge failed!"
 elif [ -n "$TICKET" ]; then
    # Get space-separated list of commits related to ticket number
    export PENDING_PROMOTIONS=$(FORCE=true list_pending_promotions | sed 1d)
@@ -292,9 +296,9 @@ elif [ -n "$TICKET" ]; then
    fi
 
    # In each submodule, Grep PENDING_PROMOTIONS for current submodule, cherry-pick all of field 2
-   git submodule foreach --quiet 'if [[ $name =~ ^production ]]; then export COMMITS=$(echo "$PENDING_PROMOTIONS" | grep "$(basename $name)" | cut -d" " -f2 | tr "\n" " "); if [ -n "$COMMITS" ]; then git checkout develop && git pull && git checkout master && git cherry-pick $COMMITS && git push; fi; fi'
+   git submodule foreach --quiet 'if [[ $name =~ ^production ]]; then export COMMITS=$(echo "$PENDING_PROMOTIONS" | grep "$(basename $name)" | cut -d" " -f2 | tr "\n" " "); if [ -n "$COMMITS" ]; then git checkout develop && git pull && git checkout master && git cherry-pick $COMMITS && git push; fi; fi' || die "It appears the cherry-pick of commits $COMMITS failed!"
 else
-   git submodule foreach --quiet 'if [ "$name" == "production/$MODULE" ]; then git checkout develop && git pull && git checkout master && git cherry-pick $COMMIT && git push; fi'
+   git submodule foreach --quiet 'if [ "$name" == "production/$MODULE" ]; then git checkout develop && git pull && git checkout master && git cherry-pick $COMMIT && git push; fi' || die "It appears the cherry-pick of commit $COMMIT failed!"
 fi
 
 printf "Running puppet-test, output will go in commit message of super-project... "
@@ -318,7 +322,7 @@ else
 fi
 
 # Unlock deploys now that we are finished.
-bypass_tests="true" cap unlock_deploys || printf "Unable to unlock deploys, please investigate.\n" >&2
+bypass_tests="true" cap unlock_deploys || perror "Unable to unlock deploys, please investigate."
 
 popd >/dev/null 2>&1
 #vim: set expandtab ts=3 sw=3:
