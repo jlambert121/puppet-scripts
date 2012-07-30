@@ -131,6 +131,23 @@ task :getrev do
    run "sudo -u root cat /etc/puppet/REVISION"
 end
 
+# This will run puppet-test local and abort if it fails
+task :testpuppet do
+   logger.info "Running puppet-test pre-deploy..."
+
+   `#{local_checkout}/scripts/puppet-test -d -e staging`
+
+   if $? != 0
+      abort "puppet-test failed with -d -e staging!"
+   end
+
+   `#{local_checkout}/scripts/puppet-test -d -e production`
+
+   if $? != 0
+      abort "puppet-test failed with -d -e production!"
+   end
+end
+
 # Task to add a lock file and bail deploys with a message if one exists
 task :lock_deploys do
    require 'etc'
@@ -301,6 +318,7 @@ after "deploy:symlink", :afterparty
 after "deploy:rollback", :afterparty
 before "deploy", "deploy:cleanup"
 before "deploy:cleanup", :lock_deploys
+before "lock_deploys", :testpuppet
 after "deploy", :notify
 after "deploy:rollback", :notify
 before "notify", :unlock_deploys
