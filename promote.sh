@@ -297,11 +297,18 @@ else
    git submodule foreach --quiet 'if [ "$name" == "production/$MODULE" ]; then git checkout develop && git pull && git checkout master && git cherry-pick $COMMIT && git push; fi'
 fi
 
-printf "Running puppet-test, output will go in commit message... "
-MESSAGE=$(printf '%s\n\n%s\n%s:\n\n%s\n%s' "$MESSAGE" "===============================================================================" "Puppet Tests for Testing Environment" "$($puppetroot/scripts/puppet-test -d -e testing)" "===============================================================================")
-MESSAGE=$(printf '%s\n%s:\n\n%s\n%s' "$MESSAGE" "Puppet Tests for Staging Environment" "$($puppetroot/scripts/puppet-test -d -e staging)" "===============================================================================")
+printf "Running puppet-test, output will go in commit message of super-project... "
 
-if [ $? -eq 0 ]; then
+export FAILCOUNT=0
+export TESTINGRESULTS="$($puppetroot/scripts/puppet-test -d -e testing 2>&1)"
+((FAILCOUNT+=$?))
+export STAGINGRESULTS="$($puppetroot/scripts/puppet-test -d -e staging 2>&1)"
+((FAILCOUNT+=$?))
+
+if [ $FAILCOUNT -eq 0 ]; then
+   MESSAGE=$(printf '%s\n\n%s\n%s:\n\n%s\n%s' "$MESSAGE" "===============================================================================" "Puppet Tests for Testing Environment" "$TESTINGRESULTS" "===============================================================================")
+   MESSAGE=$(printf '%s\n%s:\n\n%s\n%s' "$MESSAGE" "Puppet Tests for Staging Environment" "$STAGINGRESULTS" "===============================================================================")
+
    printf "SUCCESS!\n"
    git commit -am "$MESSAGE"
    git push
