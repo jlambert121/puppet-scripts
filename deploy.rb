@@ -133,19 +133,24 @@ end
 
 # This will run puppet-test local and abort if it fails
 task :testpuppet do
+   require "open4"
+
    logger.info "Running puppet-test pre-deploy for all environments..."
    puppet_environments = %w{testing staging production}
 
    puppet_environments.each do |e|
       logger.info "#{e.capitalize} Environment Puppet Tests Running..."
-      results = %x[#{local_checkout}/scripts/puppet-test -d -e #{e} 2>&1]
 
-      if $? != 0
+      returncode = Open4.popen4("#{local_checkout}/scripts/puppet-test -d -e #{e} 2>&1") { |pid, stdin, stdout, stderr|
+         logger.info stdout.gets until stdout.eof?
+      }
+
+      if returncode.to_i != 0
          abort "puppet-test failed with -d -e #{e}!"
       end
-
-      logger.info results
    end
+
+   logger.info "Completed running puppet-test pre-deploy for all environments..."
 end
 
 # Task to add a lock file and bail deploys with a message if one exists
