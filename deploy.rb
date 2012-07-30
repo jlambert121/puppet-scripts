@@ -133,24 +133,18 @@ end
 
 # This will run puppet-test local and abort if it fails
 task :testpuppet do
-   logger.info "Running puppet-test pre-deploy..."
+   logger.info "Running puppet-test pre-deploy for all environments..."
+   puppet_environments = %w{testing staging production}
 
-   %x[#{local_checkout}/scripts/puppet-test -d -e testing]
+   puppet_environments.each do |e|
+      logger.info "#{e.capitalize} Environment Puppet Tests Running..."
+      results = %x[#{local_checkout}/scripts/puppet-test -d -e #{e} 2>&1]
 
-   if $? != 0
-      abort "puppet-test failed with -d -e testing!"
-   end
+      if $? != 0
+         abort "puppet-test failed with -d -e #{e}!"
+      end
 
-   %x[#{local_checkout}/scripts/puppet-test -d -e staging]
-
-   if $? != 0
-      abort "puppet-test failed with -d -e staging!"
-   end
-
-   %x[#{local_checkout}/scripts/puppet-test -d -e production]
-
-   if $? != 0
-      abort "puppet-test failed with -d -e production!"
+      logger.info results
    end
 end
 
