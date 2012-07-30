@@ -323,7 +323,11 @@ after "deploy:symlink", :afterparty
 after "deploy:rollback", :afterparty
 before "deploy", "deploy:cleanup"
 before "deploy:cleanup", :lock_deploys
-before "lock_deploys", :testpuppet
+
+if ENV["bypass_tests"] != "true"
+   before "lock_deploys", :testpuppet
+end
+
 after "deploy", :notify
 after "deploy:rollback", :notify
 before "notify", :unlock_deploys

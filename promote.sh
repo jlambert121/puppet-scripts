@@ -252,15 +252,13 @@ fi
 # Set commit message, dependent on whether message is passed and if cherry-
 # picking or promoting the whole environment.
 if [ -z "$MESSAGE" -a -n "$COMMIT" ]; then
-   MESSAGE="Promote commit $COMMIT in submodule $MODULE from staging to production"
-fi
-
-if [ -z "$MESSAGE" -a -n "$TICKET" ]; then
-   MESSAGE="Promote all commits related to ticket [#$TICKET] from staging to production"
-fi
-
-if [ -z "$MESSAGE" -a -z "$COMMIT" -a -z "$TICKET" ]; then
-   MESSAGE="Promote all of staging to production."
+   export MESSAGE="Promote commit $COMMIT in submodule $MODULE from staging to production"
+elif [ -z "$MESSAGE" -a -n "$TICKET" ]; then
+   export MESSAGE="Promote all commits related to ticket [#$TICKET] from staging to production"
+elif [ -z "$MESSAGE" -a -z "$COMMIT" -a -z "$TICKET" ]; then
+   export MESSAGE="Promote all of staging to production."
+else
+   die "Could not formulate a proper MESSAGE for the commit, investigate around line 254+"
 fi
 
 # Change dir into puppetroot with pushd so we can keep track of where we were
@@ -270,6 +268,10 @@ pushd $puppetroot >/dev/null 2>&1
 printf "Ensure checkout is updated... "
 scripts/updatecheckout.sh >/dev/null 2>&1 || die "FAILURE! check updatecheckout.sh works!"
 printf "SUCCESS!\n"
+
+# Lock deploys with message to ensure the promotion isn't deployed at an
+# inopportune time.
+bypass_tests="true" lock_reason="$MESSAGE" cap lock_deploys || die "Error locking deploys! Not safe to continue!"
 
 # Do the actual merging or cherry-picking into production and push
 if [ -z "$COMMIT" -a -z "$TICKET" ]; then
@@ -307,6 +309,9 @@ else
    printf "FAILURE!\n"
    printf "Please run puppet-test -d -e staging (and testing), fix the errors, then re-attempt promotion!\n"
 fi
+
+# Unlock deploys now that we are finished.
+bypass_tests="true" cap unlock_deploys || printf "Unable to unlock deploys, please investigate.\n" >&2
 
 popd >/dev/null 2>&1
 #vim: set expandtab ts=3 sw=3:
