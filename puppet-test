@@ -1,4 +1,17 @@
 #!/bin/bash
+# === DEPENDENCIES ===
+# First, you need puppet installed, whichever version is installed in prod.
+# In this case it is fine to install with gem install --version=2.x.x.
+#
+# You'll need mysql installed locally, and the mysql bin has to be in your
+# path. You'll also need a database named puppet, and a user named puppet
+# @localhost, identified by the same password used on the storedconfig
+# db. This can be gleaned from puppet.conf in the checkout. You'll need
+# to make sure the only rails install you have is 3.0.11. You will need
+# the binary 'gsed' in your path, and it must be real GNU sed. Lastly,
+# you'll need GNU parallel installed.
+#
+# === SYNOPSIS ===
 # This script does syntax checks on a working tree of a puppet git repo,
 # and then utilizes the stored config DB to find a host that belongs to
 # a changed class, then compile the catalog for that host. Note that
