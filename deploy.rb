@@ -140,12 +140,15 @@ task :notify do
       end
    end
 
+   # Wrap message in @@@ tags so it's displayed properly in the ticket.
+   lh_formatted_message = "@@@\n#{message}\n@@@\n"
+
    # Loop through found ticket numbers and leave a comment on each one
    deployed_tickets.uniq!
    deployed_tickets.map! { |tstring| tstring.to_i }
    deployed_tickets.each do |ticket_number|
       ticket = Lighthouse::Ticket.find(ticket_number, :params => { :project_id => 41389 })
-      ticket.body= message
+      ticket.body= lh_formatted_message
       ticket.save_without_validation
    end
 end
