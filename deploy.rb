@@ -133,7 +133,7 @@ task :notify do
    deployed_tickets = [ ]
 
    # Loop through each line of message looking for LH ticket numbers
-   message.each do |line|
+   message.each_line do |line|
       ticket_number = line.match(/\[#\d+\]/).to_s.match(/\d+/).to_s
       if !ticket_number.nil? and !ticket_number.empty?
          deployed_tickets << ticket_number
@@ -141,11 +141,12 @@ task :notify do
    end
 
    # Loop through found ticket numbers and leave a comment on each one
+   deployed_tickets.uniq!
+   deployed_tickets.map! { |tstring| tstring.to_i }
    deployed_tickets.each do |ticket_number|
-      Lighthouse::Ticket.find(ticket_number, :params => { :project_id => 41389 }) do |ticket|
-         ticket.body = message
-         ticket.save_without_validation
-      end
+      ticket = Lighthouse::Ticket.find(ticket_number, :params => { :project_id => 41389 })
+      ticket.body= message
+      ticket.save_without_validation
    end
 end
 
