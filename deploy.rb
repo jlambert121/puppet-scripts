@@ -78,11 +78,15 @@ task :fix_deploys, :on_error => :continue do
    run "sudo -u root rm -f #{deploy_lockfile}"
 end
 
+# This task sends a notification email, and posts a comment on all tickets
+# that went out with the deployment.
 task :notify do
    require 'etc'
    require 'rubygems'
    require 'action_mailer'
+   require File.expand_path("~/working/git/puppet/priv/lighthouse-config")
 
+   # Do the mail notification, LH commenting after all of this
    ActionMailer::Base.delivery_method = :sendmail
    ActionMailer::Base.sendmail_settings = { 
       :location   => '/usr/sbin/sendmail', 
@@ -124,6 +128,25 @@ task :notify do
 
    mail = NotificationMailer.deployment(application, message, notification_email, organization_tld)
    mail.deliver
+
+   # Now time for lighthouse work. BM Project ID is 41389.
+   deployed_tickets = [ ]
+
+   # Loop through each line of message looking for LH ticket numbers
+   message.each do |line|
+      ticket_number = line.match(/\[#\d+\]/).to_s.match(/\d+/).to_s
+      if !ticket_number.nil? and !ticket_number.empty?
+         deployed_tickets << ticket_number
+      end
+   end
+
+   # Loop through found ticket numbers and leave a comment on each one
+   deployed_tickets.each do |ticket_number|
+      Lighthouse::Ticket.find(ticket_number, :params => { :project_id => 41389 }) do |ticket|
+         ticket.body = message
+         ticket.save_without_validation
+      end
+   end
 end
 
 # Task that cats out what revision is deployed
