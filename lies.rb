@@ -94,9 +94,9 @@ puppet_nodelist = Puppet::Rails::Host.find_all
 puppet_nodelist.sort!
 
 printf "The following nodes are in mcollective, but not puppet:\n"
-(mc_nodes - puppet_nodes).each { |node| printf "%s\n", node }
+(mc_nodelist - puppet_nodelist).each { |node| printf "%s\n", node }
 
 printf "The following nodes are in puppet, but not mcollective:\n"
-(puppet_nodes - mc_nodes).each { |node| printf "%s\n", node }
+(puppet_nodelist - mc_nodelist).each { |node| printf "%s\n", node }
 
 exit 0
