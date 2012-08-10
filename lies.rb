@@ -90,7 +90,8 @@ args[:database] = "puppet" unless not args[:database].to_s.empty?
 
 ActiveRecord::Base.establish_connection(args)
 
-puppet_nodelist = Puppet::Rails::Host.find_all
+puppet_nodelist = Puppet::Rails::Host.all
+puppet_nodelist.map! { |n| n.name }
 puppet_nodelist.sort!
 
 printf "The following nodes are in mcollective, but not puppet:\n"
