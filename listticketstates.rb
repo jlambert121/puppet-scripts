@@ -19,7 +19,7 @@ if ARGV[0].nil? or ARGV[0].empty?
   abort "You need to pass at least one ticket number"
 end
 
-# Build list of branches where the corresponding ticket is closed
+# Loop through argv, get ticket states
 ARGV.each do |ticket_number|
   next if ticket_number.nil? or ticket_number.empty?
   ticket_number = ticket_number.to_i
