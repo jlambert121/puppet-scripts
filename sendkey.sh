@@ -39,12 +39,14 @@ for node in $@; do
    sudo rm -f /tmp/puppet.conf.erb
    cp $HOME/working/git/puppet/production/grumps-modules/puppet/templates/node/puppet.conf.erb /tmp/puppet.conf.erb
 
-   # So dirty, sets up staging puppet.conf for nodes named x-staging.
-   if [ "$(echo $node | cut -d'-' -f2)" == "staging" ]; then
-      sed '/\[agent\]/ a\
-\ \ \ environment\ \ \ \ \ \ \ = staging\
-' /tmp/puppet.conf.erb
+   # So dirty, sets up testing/staging puppet.conf for nodes named x-staging or x-testing.
+   node_env=$(echo $node | cut -d'-' -f2)
+
+   if [ -z "$node_env" ]; then
+      node_env="production"
    fi
+
+   gsed -i "s/<%= scope.lookupvar(\"::environment\") %>/$node_env/g" /tmp/puppet.conf.erb
 
    scp -o 'StrictHostKeyChecking no' "/tmp/puppet.conf.erb" $username@$node:/tmp/puppet.conf
    scp -o 'StrictHostKeyChecking no' "../ssl/ca/signed/$node.pem" $username@$node:"/tmp/ssl/ca/signed/$node.pem"
