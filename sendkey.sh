@@ -40,9 +40,9 @@ for node in $@; do
    cp $HOME/working/git/puppet/production/grumps-modules/puppet/templates/node/puppet.conf.erb /tmp/puppet.conf.erb
 
    # So dirty, sets up testing/staging puppet.conf for nodes named x-staging or x-testing.
-   node_env=$(echo $node | cut -d'-' -f2)
+   node_env=$(echo $node | cut -d'.' -f1 | cut -d'-' -f2)
 
-   if [ -z "$node_env" ]; then
+   if [ -z "$node_env" -o "$node_env" == "$(echo $node | cut -d'.' -f1)" ]; then
       node_env="production"
    fi
 
