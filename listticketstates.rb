@@ -1,11 +1,10 @@
 #!/usr/bin/env ruby
 # This script will loop through ARGV and list the ticket statuses.
 
-$: << File.expand_path("~/working/git")
 require 'rubygems'
 
 begin
-  require "gitcleaner/priv/lighthouse-config"
+  require File.expand_path("~/working/git/puppet/priv/lighthouse-config")
 rescue => e
   p e
   Kernel.exit(-1)
