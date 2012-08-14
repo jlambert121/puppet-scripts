@@ -147,9 +147,13 @@ task :notify do
    deployed_tickets.uniq!
    deployed_tickets.map! { |tstring| tstring.to_i }
    deployed_tickets.each do |ticket_number|
-      ticket = Lighthouse::Ticket.find(ticket_number, :params => { :project_id => 41389 })
-      ticket.body= lh_formatted_message
-      ticket.save_without_validation
+      begin
+         ticket = Lighthouse::Ticket.find(ticket_number, :params => { :project_id => 41389 })
+         ticket.body= lh_formatted_message
+         ticket.save_without_validation
+      rescue
+         STDERR.puts "Error: #{$!}"
+      end
    end
 end
 
