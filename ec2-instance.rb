@@ -180,10 +180,8 @@ begin
             case securitygroup
                when 'bm-ops-ec2'
                   environmenttag = "production"
-               when 'staging'
-                  environmenttag = "staging"
                else
-                  environmenttag = "production"
+                  environmenttag = securitygroup
             end
          when '--startthreads'
             begin
