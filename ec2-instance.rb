@@ -36,6 +36,9 @@
 # --startthreads (-t)
 #   Set max number of threads starting up VMs. Defaults to 2.
 #
+# --ticket (-T)
+#   Set the lighthouse ticket to comment on.
+#
 # --volumesize (-v)
 #   Set volume size in gigabytes. Defaults to 8.
 #
@@ -113,6 +116,7 @@ require 'getoptlong'
 require 'rdoc/usage'
 require 'net/http'
 require 'net/ssh'
+require File.expand_path("~/working/git/puppet/priv/lighthouse-config")
 
 # Show usage if no args are passed.
 if ARGV.size == 0
@@ -129,6 +133,7 @@ puppetize = false
 region = "us-east-1"
 securitygroup = ""
 startthreads = 2
+ticket_number = nil
 volumesize = 8
 
 # Parse Options (1.8 style)
@@ -143,6 +148,7 @@ begin
       [ '--region',        '-r',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--securitygroup', '-g',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--startthreads',  '-t',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--ticket',        '-T',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--volumesize',    '-v',    GetoptLong::REQUIRED_ARGUMENT ]
    )
 
@@ -184,6 +190,12 @@ begin
                startthreads = arg.to_i
             rescue
                exit puts "You must pass an integer to --startthreads (-t)"
+            end
+         when '--ticket'
+            begin
+               ticket_number = arg.to_i
+            rescue
+               exit puts "You must pass an integer to --ticket (-T)"
             end
          when '--volumesize'
             begin
@@ -295,10 +307,27 @@ if failed_instances.size > 0
    puts "  " + failed_instances.map(&[:user_data]).join("\n  ")
 end
 
+# This will contain a message of what nodes were spun up
+message = "The following instances are running:\n\n"
+
 sleep 15
 puts "The following instances are running:"
 running_instances.each do |i|
    puts "#{i.user_data},#{i.ip_address}"
+   message << "#{i.user_data},#{i.id},#{i.ip_address}\n"
+end
+
+unless ticket_number.nil?
+   # Wrap message in @@@ tags so it's displayed properly in the ticket.
+   lh_formatted_message = "@@@\n#{message}\n@@@\n"
+
+   begin
+      ticket = Lighthouse::Ticket.find(ticket_number, :params => { :project_id => 41389 })
+      ticket.body= lh_formatted_message
+      ticket.save_without_validation
+   rescue
+      STDERR.puts "Error: #{$!}"
+   end
 end
 
 if puppetize == true
