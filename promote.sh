@@ -43,9 +43,11 @@ function die() {
 
    # -5 means you hit No to promotion, so don't try to unlock since lock never
    # happened.
-   if [ "$2" -ne -5 ]; then
-      # Unlock deploys now that we are dying
-      bypass_tests="true" cap unlock_deploys || perror "Unable to unlock deploys, please investigate."
+   if [ -n "$2" ]; then
+      if [ $2 -ne -5 ]; then
+         # Unlock deploys now that we are dying
+         bypass_tests="true" cap unlock_deploys || perror "Unable to unlock deploys, please investigate."
+      fi
    fi
 
    exit $2
