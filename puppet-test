@@ -432,8 +432,7 @@ printf 'SUCCESS!\n'
 # mode is on.
 if $check_node_regex; then
    printf "Checking for duplicate node regexes... "
-   for master in $puppet_masters; do
-      nodelist="$nodelist $(\
+   nodelist="$nodelist $(\
                mysql -s \
                      -D puppet \
                      -u puppet \
@@ -442,7 +441,6 @@ if $check_node_regex; then
                      -e "select name from hosts;" \
                | cat \
                )"
-   done
 
    if [ -z "$nodelist" ]; then
       printf 'FAIL! Unspecified Error retrieving nodes from database!\n' >&2
@@ -527,37 +525,37 @@ for master in $puppet_masters; do
    ssh ${master} "sudo mkdir /tmp/puppetyaml-$USER 2>/dev/null; sudo rsync -r /var/lib/puppet/yaml/ /tmp/puppetyaml-$USER/; sudo chmod -R 755 /tmp/puppetyaml-$USER"
    sudo -E rsync -r ${USER}@${master}:/tmp/puppetyaml-$USER/ /var/lib/puppet-test-$USER/yaml/
    ssh ${master} "sudo rm -rf /tmp/puppetyaml-$USER/*"
+done
 
-   for class in $classes; do
-      # Get a host that contains changed class in specified environment.
-      host_name=$(\
-                  mysql -s \
-                        -D puppet \
-                        -u puppet \
-                        -h puppetdb \
-                        -p"${storedconfig_password}" \
-                        -e "SELECT name from hosts h, resources r \
-                            WHERE r.restype = 'Class' \
-                               AND r.title = '$class' \
-                               AND h.id = r.host_id \
-                               AND h.environment = '$environment';" \
-                  | cat \
-                  | head -1 \
-                 )
+for class in $classes; do
+   # Get a host that contains changed class in specified environment.
+   host_name=$(\
+               mysql -s \
+                     -D puppet \
+                     -u puppet \
+                     -h puppetdb \
+                     -p"${storedconfig_password}" \
+                     -e "SELECT name from hosts h, resources r \
+                         WHERE r.restype = 'Class' \
+                            AND r.title = '$class' \
+                            AND h.id = r.host_id \
+                            AND h.environment = '$environment';" \
+               | cat \
+               | head -1 \
+              )
 
-      # If there is no host_name, next, if host already in the list, then
-      # don't add.
-      if [ -z "$host_name" ]; then
-         printf "warning: No hosts found in environment %s for class %s\n" "$environment" "$class" >&2
-         continue
-      fi
+   # If there is no host_name, next, if host already in the list, then
+   # don't add.
+   if [ -z "$host_name" ]; then
+      printf "warning: No hosts found in environment %s for class %s\n" "$environment" "$class" >&2
+      continue
+   fi
 
-      if echo "$servers" | grep -q "$host_name"; then
-         continue
-      fi
+   if echo "$servers" | grep -q "$host_name"; then
+      continue
+   fi
 
-      servers="$servers $host_name"
-   done
+   servers="$servers $host_name"
 done
 
 sudo parallel -P 4 \
