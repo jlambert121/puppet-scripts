@@ -437,7 +437,7 @@ if $check_node_regex; then
                      -D puppet \
                      -u puppet \
                      -p"${storedconfig_password}" \
-                     -h $master \
+                     -h puppetdb \
                      -e "select name from hosts;" \
                | cat \
                )"
@@ -533,7 +533,7 @@ for master in $puppet_masters; do
                   mysql -s \
                         -D puppet \
                         -u puppet \
-                        -h $master \
+                        -h puppetdb \
                         -p"${storedconfig_password}" \
                         -e "SELECT name from hosts h, resources r \
                             WHERE r.restype = 'Class' \
