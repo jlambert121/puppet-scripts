@@ -106,6 +106,7 @@ task :notify do
 
    message = "This is a notification of deployment of a Puppet update.\n\n"
    message << "Deployed at: #{Time.now.to_s}\n"
+   message << "Deployed by: #{Etc.getpwnam(ENV['USER']).gecos}\n"
    message << "Revision: #{real_revision}\n\n"
 
    # if the revision has not changed then don't look for logs, also if #SEC
