@@ -78,6 +78,8 @@ function usage() {
    exit 0
 }
 
+puppetroot="$HOME/working/git/puppet"
+
 check_node_regex=false
 compile_failure_log="$(mktemp /tmp/compile_failure_log.XXXXXX)"
 deployed="false"
@@ -86,7 +88,6 @@ environment="staging"
 error_msg=$(mktemp /tmp/error_msg.XXXXXX)
 force="false"
 fullforce="false"
-puppetroot="$HOME/working/git/puppet"
 puppet_masters="puppet.${domain} puppet-testing.${domain} puppet-staging.${domain}"
 storedconfig_password="$(grep dbpassword $puppetroot/puppet.conf | awk -F' ' '{ print $NF }')"
 syntax_errors=0
@@ -562,6 +563,8 @@ sudo parallel -P 4 \
    "puppet master \
    --config_version='cd $puppetroot; git rev-parse HEAD' \
    --color=false \
+   --dbserver=localhost \
+   --dbsocket=/var/lib/mysql/mysql.sock \
    --no-daemonize \
    -l console \
    --confdir=$puppetroot \
