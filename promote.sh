@@ -46,7 +46,7 @@ function die() {
    if [ -n "$2" ]; then
       if [ $2 -ne -5 ]; then
          # Unlock deploys now that we are dying
-         bypass_tests="true" cap unlock_deploys || perror "Unable to unlock deploys, please investigate."
+         bypass_tests="true" cap production unlock_deploys || perror "Unable to unlock deploys, please investigate."
       fi
    fi
 
@@ -281,7 +281,7 @@ printf "SUCCESS!\n"
 
 # Lock deploys with message to ensure the promotion isn't deployed at an
 # inopportune time.
-bypass_tests="true" lock_reason="$MESSAGE" cap lock_deploys || die "Error locking deploys! Not safe to continue!"
+bypass_tests="true" lock_reason="$MESSAGE" cap production lock_deploys || die "Error locking deploys! Not safe to continue!"
 
 # Do the actual merging or cherry-picking into production and push
 if [ -z "$COMMIT" -a -z "$TICKET" ]; then
@@ -328,7 +328,7 @@ else
 fi
 
 # Unlock deploys now that we are finished.
-bypass_tests="true" cap unlock_deploys || perror "Unable to unlock deploys, please investigate."
+bypass_tests="true" cap production unlock_deploys || perror "Unable to unlock deploys, please investigate."
 
 popd >/dev/null 2>&1
 #vim: set expandtab ts=3 sw=3:
