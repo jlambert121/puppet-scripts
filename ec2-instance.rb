@@ -18,9 +18,6 @@
 # --instancetype (-i)
 #   Set max number of threads starting up VMs. Defaults to m1.large.
 #
-# --ppthreads (-T)
-#   Set max number of threads when running Puppet. Defaults to 2.
-#
 # --puppetize (-p)
 #   Whether or not to do Puppet operations of genkey.sh and sendkey.sh. Note
 #   that genkey will run sequentially, because it has to. Sendkey however will
@@ -48,13 +45,6 @@
 # After all the -arguments, you can list N nodes. See examples below. This
 # hostname setting is done via rc.local on the boxes selecting from the
 # AWS instance user-data available via curl/wget to some virtual LAN address.
-#
-# * Thread Control
-# The threads variables like --ppthreads don't currently do anything. It was
-# a little much to complete in the time the script was initially needed. Will
-# be fixed RSN. The goal is to keep a queue of threads running at no more than
-# a maximum of the numbers given, but hopefully as close to this number
-# as possible for maximum efficiency.
 #
 # * Terminal Reset Problem
 # The threading of the sendkey script screws the terminal you're in somehow,
@@ -128,7 +118,6 @@ autocontrol = "true"
 environmenttag = ""
 imageid = ""
 instancetype = "m1.large"
-ppthreads = 2
 puppetize = false
 region = "us-east-1"
 securitygroup = ""
@@ -143,7 +132,6 @@ begin
       [ '--help',          '-h',    GetoptLong::NO_ARGUMENT       ],
       [ '--imageid',       '-m',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--instancetype',  '-i',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--ppthreads',     '-T',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--puppetize',     '-p',    GetoptLong::NO_ARGUMENT       ],
       [ '--region',        '-r',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--securitygroup', '-g',    GetoptLong::REQUIRED_ARGUMENT ],
@@ -162,12 +150,6 @@ begin
             imageid = arg
          when '--instancetype'
             instancetype = arg
-         when '--ppthreads'
-            begin
-               ppthreads = arg.to_i
-            rescue
-               exit puts "You must pass an integer to --ppthreads (-T)"
-            end
          when '--puppetize'
             puppetize = true
          when '--region'
