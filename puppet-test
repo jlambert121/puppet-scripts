@@ -81,12 +81,13 @@ function usage() {
 check_node_regex=false
 compile_failure_log="$(mktemp /tmp/compile_failure_log.XXXXXX)"
 deployed="false"
+domain=$(grep '$organization_tld ' $puppetroot/production/manifests/site.pp | awk -F' ' '{ print $NF }' | tr -d '"')
 environment="staging"
 error_msg=$(mktemp /tmp/error_msg.XXXXXX)
 force="false"
 fullforce="false"
 puppetroot="$HOME/working/git/puppet"
-puppet_masters="puppet.$(grep '$organization_tld' $puppetroot/production/manifests/site.pp | awk -F' ' '{ print $NF }' | tr -d '"')"
+puppet_masters="puppet.${domain} puppet-testing.${domain} puppet-staging.${domain}"
 storedconfig_password="$(grep dbpassword $puppetroot/puppet.conf | awk -F' ' '{ print $NF }')"
 syntax_errors=0
 vcs=""
