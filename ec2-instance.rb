@@ -332,7 +332,7 @@ if puppetize == true
             sleep 15
 
             if volumesize > 8
-               `ssh bmadmin@#{i.user_data} 'sudo resize2fs -f /dev/sda1'`
+               `ssh -o StrictHostKeyChecking=no bmadmin@#{i.user_data} 'sudo resize2fs -f /dev/sda1'`
             end
 
             `./sendkey.sh new #{i.user_data}`
