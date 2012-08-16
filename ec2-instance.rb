@@ -106,6 +106,7 @@ require 'getoptlong'
 require 'rdoc/usage'
 require 'net/http'
 require 'net/ssh'
+require 'open4'
 require File.expand_path("~/working/git/puppet/priv/lighthouse-config")
 
 # Show usage if no args are passed.
@@ -321,7 +322,13 @@ if puppetize == true
    end
 
    # Generate keys, can't be threaded, sequential operation
-   `./genkey.sh #{running_instances.collect(&:user_data).join(" ")}`
+   returncode = Open4.popen4("#{Dir.expand_path('~/working/git/puppet')}/scripts/genkey.sh #{running_instances.collect(&:user_data).join(" ")} 2>&1") { |pid, stdin, stdout, stderr|
+      puts stdout.gets until stdout.eof?
+   }
+
+   if returncode.to_i != 0
+      warn "genkey appears to have had some type of failure!"
+   end
 
    # Send keys which can be threaded but will bork your terminal. Just run
    # reset after and stop complaining.
@@ -332,10 +339,18 @@ if puppetize == true
             sleep 15
 
             if volumesize > 8
-               `ssh -o StrictHostKeyChecking=no bmadmin@#{i.user_data} 'sudo resize2fs -f /dev/sda1'`
+               returncode = Open4.popen4("ssh -o StrictHostKeyChecking=no bmadmin@#{i.user_data} 'sudo resize2fs -f /dev/sda1' 2>&1") { |pid, stdin, stdout, stderr|
+                  puts stdout.gets until stdout.eof?
+               }
+
+               if returncode.to_i != 0
+                  warn "Some problems during volume resize"
+               end
             end
 
-            `./sendkey.sh new #{i.user_data}`
+            returncode = Open4.popen4("#{Dir.expand_path('~/working/git/puppet')}/scripts/sendkey.sh new #{i.user_data} 2>&1") { |pid, stdin, stdout, stderr|
+               puts stdout.gets until stdout.eof?
+            }
          }
       end
    end
