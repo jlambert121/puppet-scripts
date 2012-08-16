@@ -322,7 +322,7 @@ if puppetize == true
    end
 
    # Generate keys, can't be threaded, sequential operation
-   returncode = Open4.popen4("#{Dir.expand_path('~/working/git/puppet')}/scripts/genkey.sh #{running_instances.collect(&:user_data).join(" ")} 2>&1") { |pid, stdin, stdout, stderr|
+   returncode = Open4.popen4("#{File.expand_path('~/working/git/puppet')}/scripts/genkey.sh #{running_instances.collect(&:user_data).join(" ")} 2>&1") { |pid, stdin, stdout, stderr|
       puts stdout.gets until stdout.eof?
    }
 
@@ -348,7 +348,7 @@ if puppetize == true
                end
             end
 
-            returncode = Open4.popen4("#{Dir.expand_path('~/working/git/puppet')}/scripts/sendkey.sh new #{i.user_data} 2>&1") { |pid, stdin, stdout, stderr|
+            returncode = Open4.popen4("#{File.expand_path('~/working/git/puppet')}/scripts/sendkey.sh new #{i.user_data} 2>&1") { |pid, stdin, stdout, stderr|
                puts stdout.gets until stdout.eof?
             }
          }
