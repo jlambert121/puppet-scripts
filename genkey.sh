@@ -9,7 +9,7 @@ if [ $# -lt 1 ]; then
 fi
 
 # Sometimes, if /var/run/puppet isn't available, this script will not work.
-if [ ! -e '/var/run/puppet' ]; then
+if ! [ -e '/var/run/puppet' ]; then
    sudo mkdir /var/run/puppet
 fi
 
@@ -25,8 +25,8 @@ git add .
 git commit -am "Added key(s) for nodes #SEC"
 git push
 popd >/dev/null 2>&1
-git add .
-git commit -am "Updated SSL submodule"
+git add ssl
+git commit -m "Updated SSL submodule"
 git push
 popd >/dev/null 2>&1
 
