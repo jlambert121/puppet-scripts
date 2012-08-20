@@ -25,7 +25,6 @@
 # == License
 # Licensed under GPLv2
 #
-
 require 'aws-config'
 require 'aws-sdk'
 require 'getoptlong'
@@ -88,11 +87,12 @@ if objects.size == 0 or objects.nil?
    exit 0
 end
 
-printf "The following is a list backups under hostname %s in bucket %s\n", host, bucketname
+printf "The following is a list backups under hostname %s in bucket %s\n\n", host, bucketname
+printf "%5s %15s %s\n", "INDEX", "BYTES", "FILEKEY"
+printf "--------------------------------------------------------------\n"
 objects.each_with_index do |obj,index|
-   printf "%5s   %s\n", index.to_s, obj.key
+   printf "%5s %15s %s\n", index.to_s, obj.content_length, obj.key
 end
-
 printf "\nEnter the item number you wish to download (defaults to last): "
 answer = gets
 
@@ -104,6 +104,13 @@ download = objects[answer.to_i]
 printf "Downloading %s... ", download.key
 
 begin
+   fsstat = Sys::Filesystem.stat(".")
+   mb_available = fsstat.block_size * fsstat.blocks_available / 1024 / 1024
+
+   if download.content_length > mb_available
+      throw "Not enough room to download #{download.key.split("/").last}!"
+   end
+
    File.open(download.key.split("/").last, "w") do |f|
       f.write(download.read)
    end
