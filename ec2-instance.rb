@@ -39,6 +39,9 @@
 # --volumesize (-v)
 #   Set volume size in gigabytes. Defaults to 8.
 #
+# --zone (-z)
+#   Set availability zone. Defaults to us-east-1a.
+#
 # == Notes
 #
 # * Node Names
@@ -66,12 +69,6 @@
 # The AWS API seems really sensitive to threads, therefore you'll see some
 # rather excessive sleep calls, in one case 90 seconds. Yes I know this is
 # bad, but it was an easy fix.
-#
-# * Randomizing Region Selection
-# By default us-east-1 is used. If we ever get to the point of spinning up
-# a bunch of instances and need real diversity for the purpose of resiliency
-# to cloud failures, I will add something in the Thread.new block that calls
-# run-instance to pick a random region, and keep this as even as possible.
 #
 # == Examples
 #
@@ -125,6 +122,7 @@ securitygroup = ""
 startthreads = 2
 ticket_number = nil
 volumesize = 8
+zone = "us-east-1a"
 
 # Parse Options (1.8 style)
 begin
@@ -138,7 +136,8 @@ begin
       [ '--securitygroup', '-g',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--startthreads',  '-t',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--ticket',        '-T',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--volumesize',    '-v',    GetoptLong::REQUIRED_ARGUMENT ]
+      [ '--volumesize',    '-v',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--zone',          '-z',    GetoptLong::REQUIRED_ARGUMENT ]
    )
 
    opts.each do |opt, arg|
@@ -184,6 +183,8 @@ begin
             rescue
                exit puts "You must pass an integer to --volumesize (-v)"
             end
+         when '--zone'
+            zone = arg
       end
    end
 rescue => e
@@ -239,15 +240,16 @@ until ARGV.size == 0 or threads.size == original_argvsize do
       Thread.current[:iname] = ARGV.shift
 
       instance = image.run_instance(
+                  :availability_zone      => zone,
                   :block_device_mappings  => {
                      "/dev/sda1" => {
                         :volume_size            => volumesize,
                         :delete_on_termination  => false
                      },
                   },
-                  :instance_type    => instancetype,
-                  :security_groups  => securitygroup,
-                  :user_data        => Thread.current[:iname]
+                  :instance_type          => instancetype,
+                  :security_groups        => securitygroup,
+                  :user_data              => Thread.current[:iname]
                  )
 
       # Do a retarded sleep just in case Mr. Magoo (AWS's given name) has
