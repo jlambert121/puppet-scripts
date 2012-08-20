@@ -66,6 +66,8 @@ begin
             host = arg
          when '--size'
             size = arg.to_i
+         when '--help'
+            RDoc::usage
       end
    end
 rescue => e
