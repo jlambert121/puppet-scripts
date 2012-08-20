@@ -14,9 +14,6 @@
 # --size (-s)
 #   Set volume size in gigabytes.
 #
-# --ticket (-t)
-#   Set LH ticket to comment on.
-#
 # == Notes
 #
 # Sometimes overcooks the pizza.
@@ -51,7 +48,6 @@ end
 # Argument Defaults
 host = ""
 size = 0
-ticket = ""
 
 # Variable Defaults
 eip = nil
@@ -61,8 +57,7 @@ begin
    opts = GetoptLong.new(
       [ '--host',    '-H',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--help',    '-h',    GetoptLong::NO_ARGUMENT       ],
-      [ '--size',    '-s',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--ticket',  '-t',    GetoptLong::REQUIRED_ARGUMENT ]
+      [ '--size',    '-s',    GetoptLong::REQUIRED_ARGUMENT ]
    )
 
    opts.each do |opt, arg|
@@ -71,8 +66,6 @@ begin
             host = arg
          when '--size'
             size = arg.to_i
-         when '--ticket'
-            ticket = arg.to_i
       end
    end
 rescue => e
@@ -88,11 +81,6 @@ end
 if size.nil? or size.empty?
    STDERR.puts "You either didn't pass -s or passed an empty size!"
    exit -2
-end
-
-if ticket.nil? or ticket.empty?
-   warn "You should typically associate this work with a ticket!"
-   exit -3
 end
 
 # Instantiate ec2 obj and find node specified.
