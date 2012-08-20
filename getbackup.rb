@@ -14,7 +14,9 @@
 #   Show this help
 #
 # == Notes
-# This program sometimes overcooks the pizza.
+# You can specify a range at the index prompt, with number-number, like:
+# 
+# 0-3
 #
 # == Authors
 # Joe McDonagh <jmcdonagh@thesilentpenguin.com>
@@ -25,10 +27,12 @@
 # == License
 # Licensed under GPLv2
 #
+require 'rubygems'
 require 'aws-config'
 require 'aws-sdk'
 require 'getoptlong'
 require 'rdoc/usage'
+require 'sys/filesystem'
 
 # Show usage if no args are passed.
 if ARGV.size == 0
@@ -36,6 +40,7 @@ if ARGV.size == 0
 end
 
 bucketname = ""
+downloads = []
 host = ""
 
 # Parse Options (1.8 style)
@@ -100,24 +105,37 @@ if answer.nil?
    answer = objects.size - 1
 end
 
-download = objects[answer.to_i]
-printf "Downloading %s... ", download.key
+if answer =~ /(\d+)-(\d+)/
+   range_low = $1.to_i
+   range_high = $2.to_i
 
-begin
-   fsstat = Sys::Filesystem.stat(".")
-   mb_available = fsstat.block_size * fsstat.blocks_available / 1024 / 1024
-
-   if download.content_length > mb_available
-      throw "Not enough room to download #{download.key.split("/").last}!"
+   for index in range_low..range_high
+      downloads << objects[index]
    end
+else
+   downloads << objects[answer.to_i]
+end
 
-   File.open(download.key.split("/").last, "w") do |f|
-      f.write(download.read)
+downloads.each do |download|
+   begin
+      fsstat = Sys::Filesystem.stat(".")
+      bytes_available = fsstat.block_size * fsstat.blocks_available
+
+      if download.content_length > bytes_available
+         throw "Not enough room to download #{download.key.split("/").last}!"
+      end
+
+      Dir.mkdir download.key.split("/")[-2] unless File.directory? download.key.split("/")[-2]
+      printf "Downloading %s... ", download.key
+      STDOUT.flush
+      File.open(download.key.split("/")[-2..-1].join(File::SEPARATOR), "w") do |f|
+         f.write(download.read)
+      end
+
+      printf "SUCCESS!\n"
+   rescue => err
+      STDERR.puts "Error: #{$!} #{err}"
    end
-
-   printf "SUCCESS!\n"
-rescue => err
-   STDERR.puts "Error: #{$!} #{err}"
 end
 
 Kernel.exit 0
