@@ -46,9 +46,7 @@ function die() {
    if [ -n "$2" ]; then
       if [ $2 -ne -5 ]; then
          # Unlock deploys now that we are dying
-         bypass_tests="true" cap production unlock_deploys || perror "Unable to unlock deploys in production, please investigate."
-         bypass_tests="true" cap staging unlock_deploys || perror "Unable to unlock deploys in staging, please investigate."
-         bypass_tests="true" cap testing unlock_deploys || perror "Unable to unlock deploys in testing, please investigate."
+         bypass_tests="true" cap all unlock_deploys || perror "Unable to unlock deploys, please investigate."
       fi
    fi
 
@@ -283,9 +281,7 @@ printf "SUCCESS!\n"
 
 # Lock deploys with message to ensure the promotion isn't deployed at an
 # inopportune time.
-bypass_tests="true" lock_reason="$MESSAGE" cap testing lock_deploys || die "Error locking deploys in testing! Not safe to continue!"
-bypass_tests="true" lock_reason="$MESSAGE" cap staging lock_deploys || die "Error locking deploys in staging! Not safe to continue!"
-bypass_tests="true" lock_reason="$MESSAGE" cap production lock_deploys || die "Error locking deploys in production! Not safe to continue!"
+bypass_tests="true" lock_reason="$MESSAGE" cap all lock_deploys || die "Error locking deploys! Not safe to continue!"
 
 # Do the actual merging or cherry-picking into production and push
 if [ -z "$COMMIT" -a -z "$TICKET" ]; then
@@ -332,9 +328,7 @@ else
 fi
 
 # Unlock deploys now that we are finished.
-bypass_tests="true" cap production unlock_deploys || perror "Unable to unlock deploys in production, please investigate."
-bypass_tests="true" cap staging unlock_deploys || perror "Unable to unlock deploys in staging, please investigate."
-bypass_tests="true" cap testing unlock_deploys || perror "Unable to unlock deploys in testing, please investigate."
+bypass_tests="true" cap all unlock_deploys || perror "Unable to unlock deploys, please investigate."
 
 popd >/dev/null 2>&1
 #vim: set expandtab ts=3 sw=3:
