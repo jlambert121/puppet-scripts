@@ -105,6 +105,8 @@ require 'net/http'
 require 'net/ssh'
 require 'open4'
 require File.expand_path("~/working/git/puppet/priv/lighthouse-config")
+require 'rubygems'
+require 'pry'
 
 # Show usage if no args are passed.
 if ARGV.size == 0
@@ -323,12 +325,12 @@ if puppetize == true
       end
    end
 
-   # Generate keys, can't be threaded, sequential operation
-   returncode = Open4.popen4("#{File.expand_path('~/working/git/puppet')}/scripts/genkey.sh #{running_instances.collect(&:user_data).join(" ")} 2>&1") { |pid, stdin, stdout, stderr|
-      puts stdout.gets until stdout.eof?
-   }
+   # Generate keys, can't be threaded, sequential operation. Also, due to bug
+   # in Puppet, need to use `` execution over more preferable open4. Bug 16103
+   # on Puppet Labs' tracker at projects.puppetlabs.com/issues/16103.
+   `#{File.expand_path('~/working/git/puppet')}/scripts/genkey.sh #{running_instances.collect(&:user_data).join(" ")}`
 
-   if returncode.to_i != 0
+   if $? != 0
       warn "genkey appears to have had some type of failure!"
    end
 
