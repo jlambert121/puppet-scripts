@@ -1,7 +1,9 @@
 #!/bin/bash
-if [ "$1" = "new" ]; then
+if [ "$1" = "new" -a -z "$username" ]; then
    export username="bmadmin"
    shift
+elif [ -n "$username" ]; then
+   export username=$username
 else
    export username=$USER
 fi
