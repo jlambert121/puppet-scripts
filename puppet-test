@@ -34,6 +34,13 @@
 # Finally, you should make sure you are in the root of the checkout when this
 # is run otherwise it likely won't work right, esp wrt submodules.
 #
+# === NOTES ===
+# If your local and remote usernames differ, you need to pass -u and -U, as
+# well as setting your username in your .ssh/config file.
+#
+# You'll also want to ensure your search domain is set, since we use the short
+# name for the puppetdb (puppetdb).
+#
 
 function caterror() {
    cat "$1" >&2
@@ -73,7 +80,8 @@ function usage() {
    printf "   -r  Specify revision to diff against, or range of revisions to \n"
    printf "       diff between. Range must be in the form of rev1:rev2. Does not yet\n"
    printf "       work with submodules.\n"
-   printf "   -u  Sets username to use. Defaults to $USER.\n"
+   printf "   -u  Sets local username to use. Defaults to $USER.\n"
+   printf "   -U  Sets remote username to use. Defaults to $USER.\n"
    printf "\n"
 
    exit 0
@@ -89,13 +97,14 @@ environment="staging"
 error_msg=$(mktemp /tmp/error_msg.XXXXXX)
 force="false"
 fullforce="false"
+local_username="$USER"
 puppet_masters="puppet.${domain} puppet-testing.${domain} puppet-staging.${domain}"
+remote_username="$USER"
 storedconfig_password="$(grep dbpassword $puppetroot/puppet.conf | awk -F' ' '{ print $NF }')"
 syntax_errors=0
-username="$USER"
 vcs=""
 
-while getopts de:fFhm:P:r:u: option; do
+while getopts de:fFhm:P:r:u:U: option; do
    case "$option" in
       d)
          deployed="true"
@@ -133,7 +142,10 @@ while getopts de:fFhm:P:r:u: option; do
          rev="$OPTARG"
       ;;
       u)
-         username="$OPTARG"
+         local_username="$OPTARG"
+      ;;
+      U)
+         remote_username="$OPTARG"
       ;;
       [?h])
          usage
@@ -520,17 +532,17 @@ classes=$(\
 servers="$puppet_masters mc.berkleemusic.com"
 
 # Ensure fake ssldir is set up
-sudo mkdir -p /var/lib/puppet-test-$username
-sudo rsync -r --delete $puppetroot/ssl/ /var/lib/puppet-test-$username/ssl/
-sudo chown -R $username /var/lib/puppet-test-$username
+sudo mkdir -p /var/lib/puppet-test-$local_username
+sudo rsync -r --delete $puppetroot/ssl/ /var/lib/puppet-test-$local_username/ssl/
+sudo chown -R $local_username /var/lib/puppet-test-$local_username
 
 # Now we will find one host for each changed class to add to the list of
 # servers for testing compiled catalogs.
 for master in $puppet_masters; do
    # First we sync facts as they are needed for catalog compilation testing
-   ssh ${master} "sudo mkdir /tmp/puppetyaml-$username 2>/dev/null; sudo rsync -r /var/lib/puppet/yaml/ /tmp/puppetyaml-$username/; sudo chmod -R 755 /tmp/puppetyaml-$username"
-   sudo -E rsync -r ${username}@${master}:/tmp/puppetyaml-$username/ /var/lib/puppet-test-$username/yaml/
-   ssh ${master} "sudo rm -rf /tmp/puppetyaml-$username/*"
+   ssh ${master} "sudo mkdir /tmp/puppetyaml-$remote_username 2>/dev/null; sudo rsync -r /var/lib/puppet/yaml/ /tmp/puppetyaml-$remote_username/; sudo chmod -R 755 /tmp/puppetyaml-$remote_username"
+   sudo -E rsync -r ${remote_username}@${master}:/tmp/puppetyaml-$remote_username/ /var/lib/puppet-test-$local_username/yaml/
+   ssh ${master} "sudo rm -rf /tmp/puppetyaml-$remote_username/*"
 done
 
 for class in $classes; do
@@ -575,8 +587,8 @@ sudo parallel -P 4 \
    --confdir=$puppetroot \
    --manifest=$puppetroot/$environment/manifests/site.pp \
    --modulepath=$(ls -d $puppetroot/$environment/*-modules | tr '\n' ':') \
-   --ssldir=/var/lib/puppet-test-$username/ssl \
-   --vardir=/var/lib/puppet-test-$username \
+   --ssldir=/var/lib/puppet-test-$local_username/ssl \
+   --vardir=/var/lib/puppet-test-$local_username \
    --compile {} 2>&1 \
    | egrep \"^(err|notice|warning|Fail)\" \
    | gsed \"/getinfo\.rb\:18\: warning\: multiple values for a block parameter/,+1d\" \
