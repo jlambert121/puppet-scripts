@@ -73,6 +73,7 @@ function usage() {
    printf "   -r  Specify revision to diff against, or range of revisions to \n"
    printf "       diff between. Range must be in the form of rev1:rev2. Does not yet\n"
    printf "       work with submodules.\n"
+   printf "   -u  Sets username to use. Defaults to $USER.\n"
    printf "\n"
 
    exit 0
@@ -91,9 +92,10 @@ fullforce="false"
 puppet_masters="puppet.${domain} puppet-testing.${domain} puppet-staging.${domain}"
 storedconfig_password="$(grep dbpassword $puppetroot/puppet.conf | awk -F' ' '{ print $NF }')"
 syntax_errors=0
+username="$USER"
 vcs=""
 
-while getopts de:fFhm:P:r: option; do
+while getopts de:fFhm:P:r:u: option; do
    case "$option" in
       d)
          deployed="true"
@@ -129,6 +131,9 @@ while getopts de:fFhm:P:r: option; do
       ;;
       r)
          rev="$OPTARG"
+      ;;
+      u)
+         username="$OPTARG"
       ;;
       [?h])
          usage
@@ -515,17 +520,17 @@ classes=$(\
 servers="$puppet_masters mc.berkleemusic.com"
 
 # Ensure fake ssldir is set up
-sudo mkdir -p /var/lib/puppet-test-$USER
-sudo rsync -r --delete $puppetroot/ssl/ /var/lib/puppet-test-$USER/ssl/
-sudo chown -R $USER /var/lib/puppet-test-$USER
+sudo mkdir -p /var/lib/puppet-test-$username
+sudo rsync -r --delete $puppetroot/ssl/ /var/lib/puppet-test-$username/ssl/
+sudo chown -R $username /var/lib/puppet-test-$username
 
 # Now we will find one host for each changed class to add to the list of
 # servers for testing compiled catalogs.
 for master in $puppet_masters; do
    # First we sync facts as they are needed for catalog compilation testing
-   ssh ${master} "sudo mkdir /tmp/puppetyaml-$USER 2>/dev/null; sudo rsync -r /var/lib/puppet/yaml/ /tmp/puppetyaml-$USER/; sudo chmod -R 755 /tmp/puppetyaml-$USER"
-   sudo -E rsync -r ${USER}@${master}:/tmp/puppetyaml-$USER/ /var/lib/puppet-test-$USER/yaml/
-   ssh ${master} "sudo rm -rf /tmp/puppetyaml-$USER/*"
+   ssh ${master} "sudo mkdir /tmp/puppetyaml-$username 2>/dev/null; sudo rsync -r /var/lib/puppet/yaml/ /tmp/puppetyaml-$username/; sudo chmod -R 755 /tmp/puppetyaml-$username"
+   sudo -E rsync -r ${username}@${master}:/tmp/puppetyaml-$username/ /var/lib/puppet-test-$username/yaml/
+   ssh ${master} "sudo rm -rf /tmp/puppetyaml-$username/*"
 done
 
 for class in $classes; do
@@ -570,8 +575,8 @@ sudo parallel -P 4 \
    --confdir=$puppetroot \
    --manifest=$puppetroot/$environment/manifests/site.pp \
    --modulepath=$(ls -d $puppetroot/$environment/*-modules | tr '\n' ':') \
-   --ssldir=/var/lib/puppet-test-$USER/ssl \
-   --vardir=/var/lib/puppet-test-$USER \
+   --ssldir=/var/lib/puppet-test-$username/ssl \
+   --vardir=/var/lib/puppet-test-$username \
    --compile {} 2>&1 \
    | egrep \"^(err|notice|warning|Fail)\" \
    | gsed \"/getinfo\.rb\:18\: warning\: multiple values for a block parameter/,+1d\" \
