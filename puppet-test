@@ -592,7 +592,7 @@ sudo parallel -P 4 \
    --compile {} 2>&1 \
    | egrep \"^(err|notice|warning|Fail)\" \
    | gsed \"/getinfo\.rb\:18\: warning\: multiple values for a block parameter/,+1d\" \
-   | egrep -v \"Failed to parse inline template: undefined method .tr. for :undefined:Symbol at .*/manifests/site.pp:14 on node \"" \
+   | egrep -v \"Failed to parse inline template: undefined method .tr. for :undefined:Symbol at .*/manifests/site.pp:\d\d on node \"" \
    ::: $servers \
 | tee $compile_failure_log
 
