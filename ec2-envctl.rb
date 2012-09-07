@@ -45,6 +45,8 @@ require 'rdoc/usage'
 require 'net/http'
 require 'net/ssh'
 require 'resolv'
+require 'rubygems'
+require 'pry'
 
 # Show usage if no args are passed.
 if ARGV.size == 0
@@ -137,7 +139,7 @@ runstages.each do |stage|
 end
 
 if batchmode == false
-   print "Are you sure you want to #{action} all nodes in the #{env} environment? [y/N] "
+   print "Are you sure you want to #{action} all auto-controlled nodes in the #{env} environment? [y/N] "
    response = gets.chomp
 
    if response.downcase != "y"
@@ -153,6 +155,16 @@ runstages.each_with_index do |stage,index|
    puts "Stage #{index}\n"
 
    stage[:nodes].each do |node|
+      if action == "stop" and [:terminated, :stopped].include? node.status
+         puts "#{node.user_data} is already in state #{node.status}"
+         next
+      end
+
+      if action == "start" and [:running, :pending, :terminated].include? node.status
+         puts "#{node.user_data} is already in state #{node.status}"
+         next
+      end
+
       print "#{action.capitalize}ing #{node.user_data}... "
 
       begin
@@ -163,6 +175,18 @@ runstages.each_with_index do |stage,index|
                :nameserver => ['8.8.8.8','8.8.4.4'],
                :ndots => 1
             )
+
+            timeout = 60
+            waited = 0
+
+            until node.status == :running or waited == timeout
+               sleep 1
+               waited += 1
+            end
+
+            if waited == timeout
+               throw "Timed out #{action}ing node #{node.user_data}"
+            end
 
             node.associate_elastic_ip resolver.getaddress(node.user_data)
          end
