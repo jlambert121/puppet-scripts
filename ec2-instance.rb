@@ -4,6 +4,11 @@
 #
 # == Usage
 #
+# --attacheip (-A)
+#   This will create a new EIP and attach it to the node. If the operation
+#   fails, it is considered a soft error and the show goes on. This defaults
+#   to false. Just pass -A with no argument to turn it on.
+#
 # --autocontrol (-a)
 #   Set the autocontrol tag to true/false, which is used by the envctl script
 #   to determine whether or not it is appropriate to start/stop a node when
@@ -114,6 +119,7 @@ if ARGV.size == 0
 end
 
 # Argument Defaults
+attacheip = "false"
 autocontrol = "true"
 environmenttag = ""
 imageid = ""
@@ -129,6 +135,7 @@ zone = "us-east-1a"
 # Parse Options (1.8 style)
 begin
    opts = GetoptLong.new(
+      [ '--attacheip',     '-A',    GetoptLong::NO_ARGUMENT       ],
       [ '--autocontrol',   '-a',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--help',          '-h',    GetoptLong::NO_ARGUMENT       ],
       [ '--imageid',       '-m',    GetoptLong::REQUIRED_ARGUMENT ],
@@ -144,6 +151,8 @@ begin
 
    opts.each do |opt, arg|
       case opt
+         when '--attacheip'
+            attacheip = "true"
          when '--autocontrol'
             autocontrol = arg
          when '--help'
@@ -276,6 +285,17 @@ until ARGV.size == 0 or threads.size == original_argvsize do
       # Set autocontrol tag which is used by envctl script to tell whether or
       # not a given node should be stopped.
       instance.tag(key = "autocontrol", options = { :value => autocontrol })
+
+      # If attacheip is true, create and associate EIP.
+      if attacheip == "true"
+         begin
+            neweip = ec2.elastic_ips.create
+            instance.associate_elastic_ip(neweip)
+            printf "Associated EIP %s with %s (%s)\n", neweip.to_s, instance.id, instance.user_data
+         rescue => err
+            warn "#{$!}: #{err}"
+         end
+      end
 
       running_instances << instance unless instance.status != :running
 
