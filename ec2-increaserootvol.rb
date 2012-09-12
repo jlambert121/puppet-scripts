@@ -114,8 +114,8 @@ rescue
 end
 
 # Get old root volume and detach from stopped node
-oldrootvol = instance.block_device_mappings[instance.root_device_name]
-oldrootvol = oldrootvol.volume
+oldrootatt = instance.block_device_mappings[instance.root_device_name]
+oldrootvol = oldrootatt.volume
 oldrootvol.detach_from instance, instance.root_device_name
 
 # Take snapshot of detached old root volume
