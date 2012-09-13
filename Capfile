@@ -12,6 +12,8 @@
 # Options
 #=============================================================================
 
+set :newhosts, nil
+set :project, nil
 set :ssh_options, { :forward_agent => true }
 set :use_sudo, "true"
 
@@ -24,13 +26,16 @@ set :use_sudo, "true"
 #=============================================================================
 
 role :puppet_db,
-   "puppet"
+   "puppetdb"
 
 #=============================================================================
 # Dynamic Roles
 #
 # These are defined empty because they are filled by the enum_hosts task.
 #=============================================================================
+
+# Role for newservers, used to set up new boxes for cap deploys
+role "newservers" do end
 
 # Role for puppet masters
 role "puppet_masters" do end
@@ -101,6 +106,24 @@ task :enum_hosts, :roles => [:puppet_db] do
    end
 end
 
+desc "Run this task like: HOSTS=admissions001-testing.berkleemusic.com,admissions001.berkleemusic.com cap -s project=admissions newserver"
+task :newserver, :roles => [:newservers] do
+   if fetch(:project) == nil
+      fail "You need to pass project to cap with cap -s project=xxxx for this task"
+   end
+
+   deploy_to = "/web/#{fetch(:project)}"
+   releases_path = "/web/#{fetch(:project)}/releases"
+   shared_path = "/web/#{fetch(:project)}/shared"
+   shared_children = %w{log pids system tmp}
+
+   dirs = [deploy_to, releases_path, shared_path]
+   dirs += shared_children.map { |d| File.join(shared_path, d.split('/').last) }
+   run "sudo -u jenkins mkdir -p #{dirs.join(' ')}"
+   dirs.delete deploy_to
+   run "sudo -u jenkins chmod g+w #{dirs.join(' ')}"
+end
+
 #=============================================================================
 # Namespace: admin
 #
@@ -125,6 +148,12 @@ end
 # Here we ask whether or not to populate the dynamic roles on start-up.
 if Capistrano::CLI.ui.ask("Populate dynamic roles? (y/n): ") == ("Y" or "y")
    enum_hosts
+end
+
+if ENV["HOSTS"] != nil and not ENV["HOSTS"].empty?
+   ENV["HOSTS"].split(",").each do |host|
+      role("newservers", host)
+   end
 end
 
 #------------------------------END OF BODY-----------------------------------#
