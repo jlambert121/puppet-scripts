@@ -71,7 +71,7 @@ end
 if host.empty?
    printf "No hostname was passed, taking EBS snapshots for each instance in  #{environment} environment"
    # Fetch attached EBS volumes; based on environment
-   all_volumes = @ec2.volumes
+   all_volumes = ec2.volumes
    attachments = []
    all_volumes.each do |vol| 
       attachments << vol.attachments.select { |att| att.instance.tags["environment"] == environment }
@@ -101,7 +101,7 @@ if host.empty?
       end
 else
    printf "Taking EBS Snapshot for #{host}"
-   node = @ec2.instances.select do |instance|
+   node = ec2.instances.select do |instance|
       instance.tags["Name"] == host.first
    end
 
@@ -120,7 +120,7 @@ end
 threshold = Time.now - (60 * 60 * 24 * 30)
 
 AWS.memoize do
-   snapshots = @ec2.snapshots.with_owner(:self)
+   snapshots = ec2.snapshots.with_owner(:self)
    snapshots.map do |snap|
       if snap.start_time < threshold and if snap.tags["autodelete"] == "true"
          p "Deleting #{snap}"
