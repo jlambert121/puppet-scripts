@@ -4,6 +4,9 @@
 #
 # == Usage
 #
+# --cleanup (-c)
+#   Remove old snapshots in addition to taking snapshots
+#
 # --environment (-e)
 #   Specify the environment in which your volumes exist  
 #
@@ -34,19 +37,23 @@ if ARGV.size == 0
 end
 
 # Argument defaults
+cleanup     = false
 environment = ""
 host        = ""
 
 # Parse Options
 begin
    opts = GetoptLong.new(
+      [ '--cleanup',       '-c',    GetoptLong::NO_ARGUMENT ],
       [ '--environment',   '-e',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--host',          '-H',    GetoptLong::OPTIONAL_ARGUMENT ],
+      [ '--host',          '-H',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--help',          '-h',    GetoptLong::NO_ARGUMENT ]
    )
 
    opts.each do |opt, arg|
       case opt
+         when '--cleanup'
+            cleanup = true
          when '--environment'
             environment = arg
          when '--host'
@@ -62,14 +69,22 @@ rescue => e
 end
          
 # Verify an environment was passed
-if environment.empty? 
-   STDERR.puts "You either didn't pass -e, or failed to pass an environment"
-   exit -1
+if environment.empty? and host.empty? and cleanup == false
+   fail "You either didn't pass -e or -h, not did you pass cleanup"
 end
 
-# If no host is specified, take snapshots of all EBS volumes within given environment
-if host.empty?
-   printf "No hostname was passed, taking EBS snapshots for each instance in  #{environment} environment"
+# Verify environment is a valid environment
+unless environment.empty?
+   unless %w{testing staging production}.include? environment
+      fail "Valid environments are testing, staging, or production, not #{environment}"
+   end
+end
+
+# If no host is specified, and environment is specified, take snapshots of all
+# EBS volumes within given environment.
+if host.empty? and not environment.empty?
+   warn "No hostname was passed, taking EBS snapshots for each instance in #{environment} environment"
+
    # Fetch attached EBS volumes; based on environment
    all_volumes = ec2.volumes
    attachments = []
@@ -82,7 +97,9 @@ if host.empty?
    attachments.flatten!
    volumes = attachments.map { |att| att.volume }
 
-   # Create a snapshot for each volume, tagging with Name == instance.tags["Name"]
+   # Create a snapshot for each volume, tagging with "Name" equal to the
+   # instance name, and autodelete set to "true". Autodelete will ensure that
+   # old snapshots will be reaped by the script.
    volumes.each do |vol|
       instance = vol.attachments.first.instance
       printf "Creating snapshot of volume %s", vol.id
@@ -99,8 +116,10 @@ if host.empty?
       else
          printf " ERROR!\n"
       end
-else
-   printf "Taking EBS Snapshot for #{host}"
+   end
+elsif not host.empty? and environment.empty?
+   puts "Taking EBS Snapshot for #{host}"
+
    node = ec2.instances.select do |instance|
       instance.tags["Name"] == host.first
    end
@@ -109,22 +128,27 @@ else
       STDERR.puts "Requested host #{host} does not have an EBS root volume"
       exit -5
    else
-      printf "Taking EBS Snapshot of #{host}"
+      puts "Taking EBS Snapshot of #{host}"
       root_vol = node.block_device_mappings[node.root_device_name]
       root_vol.volume.create_snapshot("#{host}: #{Time.now}")
-   else
+   end
+else
+   unless cleanup
+      fail "You passed both host and environment, doesn't make sense. One or the other."
    end
 end
 
-# Clean up snapshots > 1 month old
-threshold = Time.now - (60 * 60 * 24 * 30)
-
-AWS.memoize do
-   snapshots = ec2.snapshots.with_owner(:self)
-   snapshots.map do |snap|
-      if snap.start_time < threshold and if snap.tags["autodelete"] == "true"
-         p "Deleting #{snap}"
-         snap.delete
+if cleanup
+   # Clean up snapshots > 1 month old
+   threshold = Time.now - (60 * 60 * 24 * 30)
+   
+   AWS.memoize do
+      snapshots = ec2.snapshots.with_owner(:self)
+      snapshots.map do |snap|
+         if snap.start_time < threshold and snap.tags["autodelete"] == "true"
+            p "Deleting #{snap}"
+            snap.delete
+         end
       end
    end
 end
