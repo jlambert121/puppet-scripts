@@ -21,6 +21,7 @@
 #
 # == Authors
 # Bill Young <byoung2@berklee.edu>
+# Joe McDonagh <jmcdonagh@thesilentpenguin.com> 
 #
 # == Copyright
 # 2012 The Silent Penguin LLC
@@ -30,6 +31,7 @@
 #
 
 require 'aws-config'
+require 'rdoc/usage'
 
 # Show usage if no args are passed.
 if ARGV.size == 0
