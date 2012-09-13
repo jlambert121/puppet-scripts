@@ -59,7 +59,6 @@ begin
 rescue => e
    puts "Error #{$!}: #{e}"
    RDoc::usage
-
 end
          
 # Verify an environment was passed
@@ -68,35 +67,54 @@ if environment.empty?
    exit -1
 end
 
-# Fetch attached EBS volumes; based on environment
-all_volumes = @ec2.volumes
-attachments = []
-all_volumes.each do |vol| 
-   attachments << vol.attachments.select { |att| att.instance.tags["environment"] == environment }
-end
-
-# strip out vols not attached to anything, then flatten the array.
-attachments.delete_if { |item| item.empty? }
-attachments.flatten!
-volumes = attachments.map { |att| att.volume }
-
-# Create a snapshot for each volume, tagging with Name == instance.tags["Name"]
-volumes.each do |vol|
-   instance = vol.attachments.first.instance
-   printf "Creating snapshot of volume %s", vol.id
-   snap = vol.create_snapshot(Time.now.to_s)
-   snap.tags["Name"] = instance.tags["Name"]
-   snap.tags["autodelete"] = "true"
-   until [:completed, :error].include? snap.status
-      printf "."
-      sleep 1
+# If no host is specified, take snapshots of all EBS volumes within given environment
+if host.empty?
+   printf "No hostname was passed, taking EBS snapshots for each instance in  #{environment} environment"
+   # Fetch attached EBS volumes; based on environment
+   all_volumes = @ec2.volumes
+   attachments = []
+   all_volumes.each do |vol| 
+      attachments << vol.attachments.select { |att| att.instance.tags["environment"] == environment }
    end
 
-   if snap.status == :completed
-      printf " SUCCESS!\n"
+   # strip out vols not attached to anything, then flatten the array.
+   attachments.delete_if { |item| item.empty? }
+   attachments.flatten!
+   volumes = attachments.map { |att| att.volume }
+
+   # Create a snapshot for each volume, tagging with Name == instance.tags["Name"]
+   volumes.each do |vol|
+      instance = vol.attachments.first.instance
+      printf "Creating snapshot of volume %s", vol.id
+      snap = vol.create_snapshot(Time.now.to_s)
+      snap.tags["Name"] = instance.tags["Name"]
+      snap.tags["autodelete"] = "true"
+      until [:completed, :error].include? snap.status
+         printf "."
+         sleep 1
+      end
+
+      if snap.status == :completed
+         printf " SUCCESS!\n"
+      else
+         printf " ERROR!\n"
+      end
+else
+   printf "Taking EBS Snapshot for #{host}"
+   node = @ec2.instances.select do |instance|
+      instance.tags["Name"] == host.first
+   end
+
+   if node.root_device_type != :ebs
+      STDERR.puts "Requested host #{host} does not have an EBS root volume"
+      exit -5
    else
-      printf " ERROR!\n"
+      printf "Taking EBS Snapshot of #{host}"
+      root_vol = node.block_device_mappings[node.root_device_name]
+      root_vol.volume.create_snapshot("#{host}: #{Time.now}")
+   else
    end
+end
 
 # Clean up snapshots > 1 month old
 threshold = Time.now - (60 * 60 * 24 * 30)
