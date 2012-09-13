@@ -118,10 +118,8 @@ if host.empty? and not environment.empty?
       end
    end
 elsif not host.empty? and environment.empty?
-   puts "Taking EBS Snapshot for #{host}"
-
    node = ec2.instances.select do |instance|
-      instance.tags["Name"] == host.first
+      instance.tags["Name"] == host
    end
 
    if node.root_device_type != :ebs
@@ -129,8 +127,19 @@ elsif not host.empty? and environment.empty?
       exit -5
    else
       puts "Taking EBS Snapshot of #{host}"
-      root_vol = node.block_device_mappings[node.root_device_name]
-      root_vol.volume.create_snapshot("#{host}: #{Time.now}")
+      root_att = node.block_device_mappings[node.root_device_name]
+      root_vol = root.att.volume
+      snapshot = root_vol.create_snapshot("#{host}: #{Time.now}")
+      until [:completed, :error].include? snapshot.status 
+         printf "."
+         sleep 1
+      end
+
+      if snapshot.status = :completed
+         printf " SUCCESS!\n"
+      else
+         printf " ERROR!\n"
+      end
    end
 else
    unless cleanup
