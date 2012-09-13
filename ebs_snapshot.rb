@@ -41,6 +41,32 @@ cleanup     = false
 environment = ""
 host        = ""
 
+def create_snapshots(volumes)
+   unless volumes.is_a? Array
+      fail "Must pass an array to take_snapshots method"
+   end
+
+   AWS.memoize do
+      volumes.each do |vol|
+         instance = vol.attachments.first.instance
+         printf "Creating snapshot of volume %s", vol.id
+         snap = vol.create_snapshot("#{instance.tags["Name"]} - #{Time.now.to_s}")
+         snap.tags["Name"] = instance.tags["Name"]
+         snap.tags["autodelete"] = "true"
+         until [:completed, :error].include? snap.status
+            printf "."
+            sleep 1
+         end
+   
+         if snap.status == :completed
+            printf " SUCCESS!\n"
+         else
+            printf " ERROR!\n"
+         end
+      end
+   end
+end
+
 # Parse Options
 begin
    opts = GetoptLong.new(
@@ -62,7 +88,6 @@ begin
             RDoc::usage
       end
    end
-
 rescue => e
    puts "Error #{$!}: #{e}"
    RDoc::usage
@@ -96,27 +121,7 @@ if host.empty? and not environment.empty?
    attachments.delete_if { |item| item.empty? }
    attachments.flatten!
    volumes = attachments.map { |att| att.volume }
-
-   # Create a snapshot for each volume, tagging with "Name" equal to the
-   # instance name, and autodelete set to "true". Autodelete will ensure that
-   # old snapshots will be reaped by the script.
-   volumes.each do |vol|
-      instance = vol.attachments.first.instance
-      printf "Creating snapshot of volume %s", vol.id
-      snap = vol.create_snapshot(Time.now.to_s)
-      snap.tags["Name"] = instance.tags["Name"]
-      snap.tags["autodelete"] = "true"
-      until [:completed, :error].include? snap.status
-         printf "."
-         sleep 1
-      end
-
-      if snap.status == :completed
-         printf " SUCCESS!\n"
-      else
-         printf " ERROR!\n"
-      end
-   end
+   create_snapshots(volumes)
 elsif not host.empty? and environment.empty?
    node = ec2.instances.select do |instance|
       instance.tags["Name"] == host
@@ -129,17 +134,7 @@ elsif not host.empty? and environment.empty?
       puts "Taking EBS Snapshot of #{host}"
       root_att = node.block_device_mappings[node.root_device_name]
       root_vol = root.att.volume
-      snapshot = root_vol.create_snapshot("#{host}: #{Time.now}")
-      until [:completed, :error].include? snapshot.status 
-         printf "."
-         sleep 1
-      end
-
-      if snapshot.status = :completed
-         printf " SUCCESS!\n"
-      else
-         printf " ERROR!\n"
-      end
+      create_snapshots([root_vol])
    end
 else
    unless cleanup
