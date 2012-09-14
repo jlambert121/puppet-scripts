@@ -46,7 +46,6 @@ require 'net/http'
 require 'net/ssh'
 require 'resolv'
 require 'rubygems'
-require 'pry'
 
 # Show usage if no args are passed.
 if ARGV.size == 0
