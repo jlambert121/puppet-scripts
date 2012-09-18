@@ -48,25 +48,27 @@ def create_snapshots(volumes)
       fail "Must pass an array to take_snapshots method"
    end
 
-   AWS.memoize do
-      volumes.each do |vol|
-         instance = vol.attachments.first.instance
-         printf "Creating snapshot of volume %s", vol.id
-         snap = vol.create_snapshot("#{instance.tags["Name"]} - #{Time.now.to_s}")
-         snap.tags["Name"] = instance.tags["Name"]
-         snap.tags["autodelete"] = "true"
-         until [:completed, :error].include? snap.status
-            printf "."
-            sleep 1
-         end
-   
-         if snap.status == :completed
-            printf " SUCCESS!\n"
-         else
-            printf " ERROR!\n"
-         end
+   volumes.each do |vol|
+      instance = vol.attachments.first.instance
+      hostname = instance.tags["Name"]
+      printf "Creating snapshot of host %s and attached volume %s", hostname, vol.id 
+      STDOUT.flush
+      snap = vol.create_snapshot("#{instance.tags["Name"]} - #{Time.now.to_s}")
+      snap.tags["Name"] = instance.tags["Name"]
+      snap.tags["autodelete"] = "true"
+      until [:completed, :error].include? snap.status
+         printf "\r"
+         printf "%s%%", snap.progress
+         STDOUT.flush
+         sleep 5
       end
-   end
+ 
+      if snap.status == :completed
+          printf " SUCCESS!\n"
+       else
+          printf " ERROR!\n"
+       end
+    end
 end
 
 # Parse Options
@@ -107,6 +109,8 @@ unless environment.empty?
    end
 end
 
+ec2 = AWS::EC2.new
+
 # If no host is specified, and environment is specified, take snapshots of all
 # EBS volumes within given environment.
 if host.empty? and not environment.empty?
@@ -129,13 +133,15 @@ elsif not host.empty? and environment.empty?
       instance.tags["Name"] == host
    end
 
+   node = node.first
+
    if node.root_device_type != :ebs
       STDERR.puts "Requested host #{host} does not have an EBS root volume"
       exit -5
    else
       puts "Taking EBS Snapshot of #{host}"
       root_att = node.block_device_mappings[node.root_device_name]
-      root_vol = root.att.volume
+      root_vol = root_att.volume
       create_snapshots([root_vol])
    end
 else
