@@ -80,14 +80,14 @@ if host.empty?
    exit -1
 end
 
-if size.nil? or size.empty?
+if size == 0
    STDERR.puts "You either didn't pass -s or passed an empty size!"
    exit -2
 end
 
 # Instantiate ec2 obj and find node specified.
 ec2 = AWS::EC2.new
-instances = @ec2.instances.tagged("Name").tagged_values(host)
+instances = ec2.instances.tagged("Name").tagged_values(host)
 
 # Die if ambiguous, if not select only instance
 if instances.count > 1
@@ -113,23 +113,36 @@ rescue
    exit -6
 end
 
+count = 0
+timeout = 120
+
+until [:stopped, :error].include? instance.status or count == timeout
+   printf "\r"
+   printf "Waiting for instance %s to stop...", instance.tags["Name"]
+   sleep 5
+   count += 5
+end
+
 # Get old root volume and detach from stopped node
 oldrootatt = instance.block_device_mappings[instance.root_device_name]
 oldrootvol = oldrootatt.volume
-oldrootvol.detach_from instance, instance.root_device_name
 
 # Take snapshot of detached old root volume
-printf "Taking snapshot of %s from %s...\n", instance.root_device_name, host
+printf "Taking snapshot of %s (%s) from %s...\n", instance.root_device_name, oldrootvol.id, host
 STDOUT.flush
 
+oldrootvol.detach_from instance, instance.root_device_name
 oldrootsnap = oldrootvol.create_snapshot("Increasing root volume for #{host}")
+printf "Snapshot: %s\n", oldrootsnap.id
+
 until %w{:completed :error}.include? oldrootsnap.status
    sleep 5
    printf "\r"
    printf "|"
-   (oldrootsnap.progress / 8).times {|i| printf "=" }
+   (oldrootsnap.progress.to_i / 8).times {|i| printf "=" }
    printf "> "
-   printf "%s\%", oldrootsnap.progress
+   printf "%s%%", oldrootsnap.progress
+   STDOUT.flush
 end
 printf "\n"
 
