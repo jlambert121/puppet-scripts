@@ -333,7 +333,9 @@ if echo $changes | grep -q 'manifests/nodes'; then
 fi
 
 # The syntax checks also check for hard tabs in Ruby, ERB, shell, and puppet
-# code. It is fairly stupid and only uses file extensions to do this.
+# code. It is fairly stupid and only uses file extensions to do this. Also
+# checks for lines with nothing but whitespace, or lines that end in white-
+# space.
 printf "Checking syntax on changes in working tree... "
 for change in $changes; do
    case $change in
@@ -406,6 +408,18 @@ for change in $changes; do
          fi
       ;;
    esac
+
+   # No files should contain lines that only have whitespace, or end in
+   # trailing whitespace.
+   if cat $change | egrep -q '^\s+$'; then
+      printf 'FAIL!\nLine(s) found with nothing but whitespace in %s!\n' "$change" >&2
+      syntax_errors=$((syntax_errors + 1))
+   fi
+
+   if cat $change | egrep -q '\s+$'; then
+      printf 'FAIL!\nLine(s) found that end with extra whitespace in %s!\n' "$change" >&2
+      syntax_errors=$((syntax_errors + 1))
+   fi
 
    rm -f $error_msg
 
