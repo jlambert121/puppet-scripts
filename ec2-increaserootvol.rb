@@ -113,14 +113,10 @@ rescue
    exit -6
 end
 
-count = 0
-timeout = 120
-
-until [:stopped, :error].include? instance.status or count == timeout
-   printf "\r"
-   printf "Waiting for instance %s to stop...", instance.tags["Name"]
+until [:stopped, :error].include? instance.status
+   printf "\rWaiting for instance %s to stop...", instance.tags["Name"]
+   STDOUT.flush
    sleep 5
-   count += 5
 end
 
 # Get old root volume and detach from stopped node
@@ -135,10 +131,9 @@ oldrootvol.detach_from instance, instance.root_device_name
 oldrootsnap = oldrootvol.create_snapshot("Increasing root volume for #{host}")
 printf "Snapshot: %s\n", oldrootsnap.id
 
-until %w{:completed :error}.include? oldrootsnap.status
+until [:completed, :error].include? oldrootsnap.status
    sleep 5
-   printf "\r"
-   printf "|"
+   printf "\r|"
    (oldrootsnap.progress.to_i / 8).times {|i| printf "=" }
    printf "> "
    printf "%s%%", oldrootsnap.progress
@@ -161,9 +156,8 @@ rescue
    exit -8
 end
 
-until %w{:available :error}.include? newrootvol.status
-   printf "\r"
-   printf "Waiting for new root vol to become available... "
+until [:available, :error].include? newrootvol.status
+   printf "\rWaiting for new root vol to become available... "
    sleep 5
 end
 printf "\n"
@@ -184,9 +178,8 @@ rescue
    exit -10
 end
 
-until %w{:error :in_use}.include? newrootvol.status
-   printf "\r"
-   printf "Waiting for volume to become in use..."
+until [:error, :in_use].include? newrootvol.status
+   printf "\rWaiting for volume to become in use..."
    sleep 5
 end
 printf "\n"
@@ -200,14 +193,14 @@ end
 printf "Starting %s back up", host
 begin
    instance.start
-   until %w{:error :running}.include? instance.status
+   until [:error, :running].include? instance.status
       printf "."
       sleep 5
    end
    printf "\n"
 
    if instance.status == :error
-      throw "Error starting instance!"
+      throw "Instance #{host} (#{instance.id}) in error state!"
    end
 
    unless eip.nil?

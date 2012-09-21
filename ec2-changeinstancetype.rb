@@ -87,9 +87,9 @@ end
 
 # Instantiate ec2 obj and find node specified.
 ec2 = AWS::EC2.new
-instances = AWS.memoize { ec2.instances.select { |n| n.tags["Name"].downcase == str.downcase } }
-throw "Your identifier matched multiple nodes!" if nodes.size > 1
-throw "Your identifier matched no nodes!" if nodes.size == 0
+instances = AWS.memoize { ec2.instances.select { |n| n.tags["Name"].downcase == host.downcase } }
+throw "Your identifier matched multiple nodes!" if instances.size > 1
+throw "Your identifier matched no nodes!" if instances.size == 0
 instance = instances.first
 
 # Die if -t and current instance type match
@@ -98,8 +98,12 @@ if instance.instance_type == instancetype
    exit -5
 end
 
+printf "Changing %s (%s) from instance type %s to instance type %s\n", host, instance.id, instance.instance_type, instancetype
+STDOUT.flush
+
 begin
-   printf "Stopping #{host}... "
+   printf "Stopping #{host} (#{instance.id})...\n"
+   STDOUT.flush
    eip = instance.elastic_ip
    instance.stop
 rescue => e
@@ -111,19 +115,20 @@ count = 0
 timeout = 120
 
 until [:stopped, :error].include? instance.status or count == timeout
-   printf "\r"
-   printf "Waiting for instance %s to stop...", instance.tags["Name"]
+   printf "\rWaiting for instance %s (%s) to stop...", instance.tags["Name"], instance.id
+   STDOUT.flush
    sleep 5
    count += 5
 end
+printf "\n"
 
 if count == timeout
-   STDERR.printf "Timed out waiting for instance %s (%s) to stop", host, instance.id
+   STDERR.printf "Timed out waiting for instance %s (%s) to stop\n", host, instance.id
    exit -1
 end
 
 if instance.status == :error
-   STDERR.printf "Host %s (%s) is in error state!", host, instance.id
+   STDERR.printf "Host %s (%s) is in error state!\n", host, instance.id
    exit -2
 end
 
@@ -140,11 +145,21 @@ end
 printf "Starting %s back up", host
 begin
    instance.start
-   until %w{:error :running}.include? instance.status
+
+   count = 0
+   timeout = 120
+
+   until [:error, :running].include? instance.status or count == timeout
       printf "."
+      STDOUT.flush
       sleep 5
+      count += 5
    end
    printf "\n"
+
+   if count == timeout
+      throw "Timed out waiting for instance to start!"
+   end
 
    if instance.status == :error
       throw "Error starting instance!"
@@ -157,12 +172,14 @@ begin
    end
 rescue => e
    STDERR.puts "#{e}"
+   exit -7
 end
 
 unless eip.nil?
    # Sleep until host is available. After attaching EIP, there is typically a
    # few second delay until availability.
-   printf "Waiting for box to become available at EIP...\n"
+   printf "Waiting for box to become available at EIP %s...\n", eip.public_ip
+   STDOUT.flush
    sleep 5 until `ping -c 1 #{eip.public_ip} >/dev/null 2>&1`
 end
 
