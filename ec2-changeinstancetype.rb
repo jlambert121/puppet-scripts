@@ -11,8 +11,8 @@
 # --help (-h)
 #   Show this help
 #
-# --size (-s)
-#   Set volume size in gigabytes.
+# --type (-t)
+#   Set new instance type.
 #
 # == Notes
 #
@@ -65,7 +65,7 @@ begin
          when '--host'
             host = arg
          when '--type'
-            type = arg
+            instancetype = arg
          when '--help'
             RDoc::usage
       end
@@ -80,7 +80,7 @@ if host.empty?
    exit -1
 end
 
-if type.empty?
+if instancetype.empty?
    STDERR.puts "You either didn't pass -t or passed an empty instance type!"
    exit -2
 end
