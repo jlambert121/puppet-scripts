@@ -411,12 +411,12 @@ for change in $changes; do
 
    # No files should contain lines that only have whitespace, or end in
    # trailing whitespace.
-   if cat $change | egrep -q '^\s+$'; then
+   if cat $change | egrep -q '^  *$'; then
       printf 'FAIL!\nLine(s) found with nothing but whitespace in %s!\n' "$change" >&2
       syntax_errors=$((syntax_errors + 1))
    fi
 
-   if cat $change | egrep -q '\s+$'; then
+   if cat $change | egrep -q '  *$'; then
       printf 'FAIL!\nLine(s) found that end with extra whitespace in %s!\n' "$change" >&2
       syntax_errors=$((syntax_errors + 1))
    fi
