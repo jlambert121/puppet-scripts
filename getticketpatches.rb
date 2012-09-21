@@ -62,6 +62,8 @@ if ticket.nil? or ticket.to_i == 0
   exit -1
 end
 
+Dir.chdir(File.expand_path("~/working/git/puppet"))
+
 Open4.popen4("git submodule --quiet foreach 'if [[ $path =~ ^production.* ]]; then git log --oneline | grep #{ticket} | cut -d\" \" -f1 | xargs git show || true; fi'") do |pid, stdin, stdout, stderr|
   patches << stdout.gets until stdout.eof?
 end 
