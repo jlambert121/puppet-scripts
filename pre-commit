@@ -14,6 +14,10 @@ for file in $(git diff-index --cached --name-only $against --); do
       continue
    fi
 
+   if [ -d "$file" ]; then
+      continue
+   fi
+
    case "$file" in
       *.erb)
          # Check ERB template syntax
