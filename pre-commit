@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+
+if git-rev-parse --verify HEAD >/dev/null 2>&1 ; then
+   against=HEAD
+else
+   # Initial commit: diff against an empty tree object
+   against=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+fi
+
+syntax_errors=0
+# Find files with trailing whitespace
+for file in $(git diff-index --cached --name-only $against --); do
+   if [ ! -e "$file" ]; then
+      continue
+   fi
+
+   case "$file" in
+      *.erb)
+         # Check ERB template syntax
+         cat "$file" \
+         | erb -P -x -T - \
+         | ruby -cw
+
+         if [ $? -ne 0 ]; then
+            printf 'FAIL!\nERB Parse Failure:\n' >&2
+            printf "%s\n" "$file" >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+
+         if cat "$file" | grep -q '	'; then
+            printf 'FAIL!\nHard tabs found in %s!\n' "$file" >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+      ;;
+      *.pp)
+         # Check puppet manifest syntax
+         puppet parser validate --color=false "$file"
+
+         if [ $? -ne 0 ]; then
+            printf 'FAIL!\nPuppet Parse Failure:\n' >&2
+            printf "%s\n" "$file" >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+
+         if cat $file | grep -q '	'; then
+            printf 'FAIL!\nHard tabs found in %s!\n' "$file" >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+      ;;
+      *.rb)
+         # Check Ruby template syntax
+         cat "$file" \
+         | ruby -cw > /dev/null
+
+         if [ $? -ne 0 ]; then
+            printf 'FAIL!\nRuby Parse Failure:\n' >&2
+            printf "%s\n" "$file" >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+
+         if cat $file | grep -q '	'; then
+            printf 'FAIL!\nHard tabs found in %s!\n' "$file" >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+      ;;
+      *.sh)
+         # Shell scripts
+         cat "$file" \
+         | bash -n
+
+         if [ $? -ne 0 ]; then
+            printf 'FAIL!\nParse Failure:\n' >&2
+            printf "$file: " >&2
+            syntax_errors=$((syntax_errors + 1))
+         fi
+
+         if cat "$file" | grep -q '	'; then
+            printf 'FAIL!\nHard tabs found in %s!\n' "$file" >&2
+         fi
+      ;;
+   esac
+
+   if egrep -q '[[:space:]]*$' "$file"; then
+      sed -i '' -E 's/[[:space:]]*$//' "$file"
+      git add "$file"
+   fi
+done
+
+exit $syntax_errors
+
+#vim: set expandtab ts=3 sw=3:

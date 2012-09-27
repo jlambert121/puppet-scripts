@@ -1,0 +1,13 @@
+#!/usr/bin/env ruby
+# Check if a commit message has a ticket number in it.
+git_shortlog = `head -n 1 #{ARGV[0]}`
+regex = /\[#(\d+)\]/
+
+unless regex.match(git_shortlog)
+   puts "No ticket number in your commit msg!"
+   exit 1
+end
+
+exit 0
+
+#vim: set expandtab ts=3 sw=3:
