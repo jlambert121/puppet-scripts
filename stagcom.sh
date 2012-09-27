@@ -9,7 +9,7 @@ if [ -z "$COMMIT_MESSAGE" ]; then
    exit -1
 fi
 
-git submodule foreach 'if [[ $path =~ ^staging.* ]]; then git checkout develop; git add .; git commit -am "$COMMIT_MESSAGE" && git push -u origin develop; fi'
+git submodule foreach 'if [[ $path =~ ^staging.* ]]; then git checkout develop; git add .; if git status | tail -n 1 | grep -q "nothing to commit"; then true; else git commit -am "$COMMIT_MESSAGE" && git push -u origin develop; fi; fi'
 
 if [ $? -eq 0 ]; then
    git commit -am "Updated submodules: $COMMIT_MESSAGE" && git push && exit 0
