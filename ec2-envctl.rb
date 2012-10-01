@@ -175,7 +175,7 @@ runstages.each_with_index do |stage,index|
                :ndots => 1
             )
 
-            timeout = 60
+            timeout = 300
             waited = 0
 
             until node.status == :running or waited == timeout
@@ -183,11 +183,11 @@ runstages.each_with_index do |stage,index|
                waited += 1
             end
 
+            node.associate_elastic_ip resolver.getaddress(node.user_data)
+
             if waited == timeout
                throw "Timed out #{action}ing node #{node.user_data}"
             end
-
-            node.associate_elastic_ip resolver.getaddress(node.user_data)
          end
 
          puts "SUCCESS"
