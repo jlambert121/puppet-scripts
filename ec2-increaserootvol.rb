@@ -109,22 +109,29 @@ begin
    instance.stop
    printf "SUCCESS!\n"
 rescue
-   STDERR.puts "FAIL!"
+   puts "FAIL!"
    exit -6
 end
 
 until [:stopped, :error].include? instance.status
-   printf "\rWaiting for instance %s to stop...", instance.tags["Name"]
+   printf "\rWaiting for instance %s to stop... ", instance.tags["Name"]
    STDOUT.flush
    sleep 5
 end
+
+if instance.status == :error
+   puts "FAIL!"
+   exit -7
+end
+
+printf "SUCCESS!\n"
 
 # Get old root volume and detach from stopped node
 oldrootatt = instance.block_device_mappings[instance.root_device_name]
 oldrootvol = oldrootatt.volume
 
 # Take snapshot of detached old root volume
-printf "Taking snapshot of %s (%s) from %s...\n", instance.root_device_name, oldrootvol.id, host
+printf "Taking snapshot of %s (%s) from %s (%s)...\n", instance.root_device_name, oldrootvol.id, host, instance.id
 STDOUT.flush
 
 oldrootvol.detach_from instance, instance.root_device_name
@@ -150,7 +157,7 @@ end
 begin
    printf "Creating new volume from snapshot of old root volume... "
    newrootvol = oldrootsnap.create_volume(instance.availability_zone, { :size => size })
-   printf "SUCCESS!\n"
+   printf "SUCCESS!"
 rescue
    STDERR.puts "ERROR!\n"
    exit -8
@@ -160,21 +167,22 @@ until [:available, :error].include? newrootvol.status
    printf "\rWaiting for new root vol to become available... "
    sleep 5
 end
-printf "\n"
 
 if newrootvol.status == :error
    STDERR.puts "Error creating new volume!"
    exit -9
 end
 
+printf "\n"
+
 # Attach new root to instance
 printf "Attaching new root vol to #{host}... "
 STDOUT.flush
 begin
    newrootvol.attach_to instance, instance.root_device_name
-   printf "SUCCESS!\n"
+   printf "SUCCESS!"
 rescue
-   STDERR.puts "FAILURE!\n"
+   puts "FAILURE!\n"
    exit -10
 end
 
@@ -197,11 +205,12 @@ begin
       printf "."
       sleep 5
    end
-   printf "\n"
 
    if instance.status == :error
       throw "Instance #{host} (#{instance.id}) in error state!"
    end
+
+   printf "SUCCESS!\n"
 
    unless eip.nil?
       printf "Re-attaching elastic IP... "
@@ -209,7 +218,8 @@ begin
       printf "SUCCESS!\n"
    end
 rescue => e
-   STDERR.puts "#{e}"
+   puts "#{e}"
+   exit -12
 end
 
 unless eip.nil?
