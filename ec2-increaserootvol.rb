@@ -203,6 +203,7 @@ begin
    instance.start
    until [:error, :running].include? instance.status
       printf "."
+      STDOUT.flush
       sleep 5
    end
 
