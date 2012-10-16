@@ -30,7 +30,7 @@ end
 
 # Print results
 tickets.each do |ticket|
-  printf "%8s %s\n", ticket.number.to_s, ticket.state
+  printf "%8s %20s %s\n", ticket.number.to_s, ticket.state, ticket.title
 end
 
 #vim: set expandtab ts=2 sw=2:
