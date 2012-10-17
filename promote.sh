@@ -320,7 +320,7 @@ if [ $FAILCOUNT -eq 0 ]; then
    MESSAGE=$(printf '%s\n%s:\n\n%s\n%s' "$MESSAGE" "Puppet Tests for Staging Environment" "$STAGINGRESULTS" "===============================================================================")
 
    printf "SUCCESS!\n"
-   git commit -am "$MESSAGE"
+   git commit -am "$MESSAGE" --no-verify
    git push
 else
    printf "FAILURE!\n"
