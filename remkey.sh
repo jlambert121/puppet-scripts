@@ -17,11 +17,11 @@ done
 pushd $pupdir >/dev/null 2>&1
 pushd $ssldir >/dev/null 2>&1
 git add . 
-git commit -am "Removed key(s) for nodes #SEC"
+git commit -am "Removed key(s) for nodes #SEC" --no-verify
 git push
 popd >/dev/null 2>&1
 git add .
-git commit -am "Updated SSL submodule"
+git commit -am "Updated SSL submodule" --no-verify
 git push
 popd >/dev/null 2>&1
 printf "Please don't forget to remove the node(s) from stored configs on its master.\n"
