@@ -590,7 +590,7 @@ for class in $classes; do
    servers="$servers $host_name"
 done
 
-sudo parallel -P 4 \
+sudo -E parallel -P 4 \
    "puppet master \
    --config_version='cd $puppetroot; git rev-parse HEAD' \
    --color=false \
