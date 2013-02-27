@@ -1,15 +1,23 @@
 #!/bin/bash
 # === DEPENDENCIES ===
 # First, you need puppet installed, whichever version is installed in prod.
-# In this case it is fine to install with gem install --version=2.x.x.
+# Use the Gemfile, ie:
 #
-# You'll need mysql installed locally, and the mysql bin has to be in your
-# path. You'll also need a database named puppet, and a user named puppet
-# @localhost, identified by the same password used on the storedconfig
-# db. This can be gleaned from puppet.conf in the checkout. You'll need
-# to make sure the only rails install you have is 3.0.11. You will need
-# the binary 'gsed' in your path, and it must be real GNU sed. Lastly,
-# you'll need GNU parallel installed.
+#  bundle install
+#
+# We also assume you have RVM, due to the use of rvmsudo.
+#
+# Now you will need to install the PuppetDB terminus for whatever version of
+# PuppetDB we are using. As of the initial deploy that is 1.1.1. To do this,
+# you'll need to download and unzip the PuppetDB source tarball from
+# downloads.puppetlabs.com, then copy over the ext/master/lib/puppet
+# directory to wherever your puppet lib directory is inside rvm. This can be
+# had by cd ~/working/git/puppet, and looking at the output of 'which puppet'.
+# This will tell you where the gem directory is you're using, and the lib dir-
+# ectory is located in the root of that folder under gem/.
+# 
+# You will need the binary 'gsed' in your path, and it must be real GNU sed.
+# Lastly, you'll need GNU parallel installed.
 #
 # === SYNOPSIS ===
 # This script does syntax checks on a working tree of a puppet git repo,
@@ -99,8 +107,9 @@ force="false"
 fullforce="false"
 local_username="$USER"
 puppet_masters="puppet.${domain} puppet-testing.${domain} puppet-staging.${domain}"
+puppetdb_server="puppetdb.${domain}"
+query_defaults="RUBYLIB=/usr/local/ruby-puppetdb/lib:$RUBYLIB puppet query --puppetdb_host puppetdb.berkleemusic.com --puppetdb_port 8081" 
 remote_username="$USER"
-storedconfig_password="$(grep dbpassword $puppetroot/puppet.conf | awk -F' ' '{ print $NF }')"
 syntax_errors=0
 vcs=""
 
@@ -464,15 +473,7 @@ printf 'SUCCESS!\n'
 # mode is on.
 if $check_node_regex; then
    printf "Checking for duplicate node regexes... "
-   nodelist="$nodelist $(\
-               mysql -s \
-                     -D puppet \
-                     -u puppet \
-                     -p"${storedconfig_password}" \
-                     -h puppetdb \
-                     -e "select name from hosts;" \
-               | cat \
-               )"
+   nodelist=$(ssh -t $puppetdb_server "sudo bash -c \"$query_defaults node\"" 2>/dev/null | tr -d '"[]' | sed 's/,/\n/g')
 
    if [ -z "$nodelist" ]; then
       printf 'FAIL! Unspecified Error retrieving nodes from database!\n' >&2
@@ -543,7 +544,11 @@ classes=$(\
          )
 
 # Should have at least one server for a non-specific compile test
-servers="$puppet_masters mc.berkleemusic.com"
+if [ "$environment" == "production" ]; then
+   servers="puppet.${domain}"
+else
+   servers="puppet-${environment}.${domain}"
+fi
 
 # Ensure fake ssldir is set up
 sudo mkdir -p /var/lib/puppet-test-$local_username
@@ -561,20 +566,7 @@ done
 
 for class in $classes; do
    # Get a host that contains changed class in specified environment.
-   host_name=$(\
-               mysql -s \
-                     -D puppet \
-                     -u puppet \
-                     -h puppetdb \
-                     -p"${storedconfig_password}" \
-                     -e "SELECT name from hosts h, resources r \
-                         WHERE r.restype = 'Class' \
-                            AND r.title = '$class' \
-                            AND h.id = r.host_id \
-                            AND h.environment = '$environment';" \
-               | cat \
-               | head -1 \
-              )
+   host_name=$(ssh -t $puppetdb_server "sudo bash -c \"$query_defaults node -q Class[$class]\"" 2>/dev/null | tr -d '"[]' | sed 's/,/\n/g' | head -n 1)
 
    # If there is no host_name, next, if host already in the list, then
    # don't add.
@@ -590,12 +582,11 @@ for class in $classes; do
    servers="$servers $host_name"
 done
 
-sudo -E parallel -P 4 \
+rvmsudo -E parallel -P 4 \
    "puppet master \
+   --environment=$environment \
    --config_version='cd $puppetroot; git rev-parse HEAD' \
    --color=false \
-   --dbserver=localhost \
-   --dbsocket=/var/lib/mysql/mysql.sock \
    --no-daemonize \
    -l console \
    --confdir=$puppetroot \
@@ -604,13 +595,13 @@ sudo -E parallel -P 4 \
    --ssldir=/var/lib/puppet-test-$local_username/ssl \
    --vardir=/var/lib/puppet-test-$local_username \
    --compile {} 2>&1 \
-   | egrep \"^(err|notice|warning|Fail)\" \
-   | gsed \"/getinfo\.rb\:18\: warning\: multiple values for a block parameter/,+1d\" \
-   | egrep -v \"Failed to parse inline template: undefined method .tr. for :undefined:Symbol at .*/manifests/site.pp:\d\d on node \"" \
+   | egrep -i \"^(err|notice|warning|fail)\" \
+   | egrep -v \"Failed to parse inline template: undefined method .tr. for nil:NilClass at .*/manifests/site.pp:\d\d on node\"" \
    ::: $servers \
 | tee $compile_failure_log
 
-if egrep -q '^(err|Fail)' "$compile_failure_log"; then
+
+if egrep -iq '^(err|fail)' "$compile_failure_log"; then
     printf 'Compilation errors, please fix.\n' >&2
     rm -f "$compile_failure_log"
     exit -1
