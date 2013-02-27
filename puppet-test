@@ -566,7 +566,7 @@ done
 
 for class in $classes; do
    # Get a host that contains changed class in specified environment.
-   host_name=$(ssh -t $puppetdb_server "sudo bash -c \"$query_defaults node -q Class[$class]\"" 2>/dev/null | tr -d '"[]' | sed 's/,/\n/g' | head -n 1)
+   host_name=$(ssh -t $puppetdb_server "sudo bash -c \"$query_defaults node -q Class[$class]\"" 2>/dev/null | tr -d '"[]\r' | tr ',' '\n' | head -n 1)
 
    # If there is no host_name, next, if host already in the list, then
    # don't add.
