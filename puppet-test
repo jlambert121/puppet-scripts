@@ -473,7 +473,7 @@ printf 'SUCCESS!\n'
 # mode is on.
 if $check_node_regex; then
    printf "Checking for duplicate node regexes... "
-   nodelist=$(ssh -t $puppetdb_server "sudo bash -c \"$query_defaults node\"" 2>/dev/null | tr -d '"[]' | sed 's/,/\n/g')
+   nodelist=$(ssh -t $puppetdb_server "sudo bash -c \"$query_defaults node\"" 2>/dev/null | tr -d '"[]\r' | sed 's/,/\n/g')
 
    if [ -z "$nodelist" ]; then
       printf 'FAIL! Unspecified Error retrieving nodes from database!\n' >&2
@@ -566,7 +566,7 @@ done
 
 for class in $classes; do
    # Get a host that contains changed class in specified environment.
-   host_name=$(ssh -t $puppetdb_server "sudo bash -c \"$query_defaults node -q Class[$class]\"" 2>/dev/null | tr -d '"[]\r' | tr ',' '\n' | head -n 1)
+   host_name=$(ssh -t $puppetdb_server "sudo bash -c \"$query_defaults node -q '(Class[$class] and ec2_security_groups=$environment)'\"" 2>/dev/null | tr -d '"[]\r' | tr ',' '\n' | head -n 1)
 
    # If there is no host_name, next, if host already in the list, then
    # don't add.
