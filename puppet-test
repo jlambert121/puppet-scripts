@@ -342,7 +342,11 @@ if echo $changes | grep -q 'manifests/nodes'; then
 fi
 
 # Strip out changes that do not match $environment
-changes=$(echo "$changes" | egrep ^$environment)
+if [ "$environment" == "production" ]; then
+   changes=$(echo "$changes" | egrep ^production)
+else
+   changes=$(echo "$changes" | egrep '^testing|^staging')
+fi
 
 # The syntax checks also check for hard tabs in Ruby, ERB, shell, and puppet
 # code. It is fairly stupid and only uses file extensions to do this. Also
