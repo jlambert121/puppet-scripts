@@ -341,6 +341,9 @@ if echo $changes | grep -q 'manifests/nodes'; then
     check_node_regex=true
 fi
 
+# Strip out changes that do not match $environment
+changes=$(echo "$changes" | egrep ^$environment)
+
 # The syntax checks also check for hard tabs in Ruby, ERB, shell, and puppet
 # code. It is fairly stupid and only uses file extensions to do this. Also
 # checks for lines with nothing but whitespace, or lines that end in white-
