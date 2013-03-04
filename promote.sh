@@ -297,7 +297,7 @@ elif [ -n "$TICKET" ]; then
       read -p "Are you sure you want to promote all commits associated with ticket $TICKET? (y/N) " answer
 
       if [ "$answer" != "y" -a "$answer" != "Y" ]; then
-         die "Did not confirm multi-commit promotion, exiting." -5
+         die "Did not confirm multi-commit promotion, exiting."
       fi
    fi
 
