@@ -310,10 +310,13 @@ fi
 printf "Running puppet-test, output will go in commit message of super-project... "
 
 export FAILCOUNT=0
-export TESTINGRESULTS="$($puppetroot/scripts/puppet-test -d -e testing 2>&1)"
+TESTINGRESULTS="$($puppetroot/scripts/puppet-test -d -e testing 2>&1)"
 ((FAILCOUNT+=$?))
-export STAGINGRESULTS="$($puppetroot/scripts/puppet-test -d -e staging 2>&1)"
+STAGINGRESULTS="$($puppetroot/scripts/puppet-test -d -e staging 2>&1)"
 ((FAILCOUNT+=$?))
+
+export TESTINGRESULTS
+export STAGINGRESULTS
 
 if [ $FAILCOUNT -eq 0 ]; then
    MESSAGE=$(printf '%s\n\n%s\n%s:\n\n%s\n%s' "$MESSAGE" "===============================================================================" "Puppet Tests for Testing Environment" "$TESTINGRESULTS" "===============================================================================")
