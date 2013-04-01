@@ -14,6 +14,7 @@
 # == Examples
 #
 #     ./ec2-copysnaptowest.rb broker001.somesite.com broker002.somesite.com
+#     ./ec2-copysnaptowest.rb vol-3248abde
 #
 # == Authors
 # Joe McDonagh <jmcdonagh@thesilentpenguin.com>
@@ -42,54 +43,62 @@ ec2_main = AWS::EC2.new
 ec2_east = ec2_main.regions["us-east-1"]
 ec2_west = ec2_main.regions["us-west-1"]
 
-ARGV.each do |hostname|
-   instances = ec2_east.instances.select { |i| i.tags["Name"] == hostname }
+ARGV.each do |input|
+   unless input =~ /^vol-[a-f|A-F|1-9]{8}$/
+      hostname = input
+      instances = ec2_east.instances.select { |i| i.tags["Name"] == hostname }
 
-   if instances.empty?
-      STDERR.puts "The hostname #{hostname} matched no nodes, skipping!"
-      errcount += 1
-      next
+      if instances.empty?
+         STDERR.puts "The hostname #{hostname} matched no nodes, skipping!"
+         errcount += 1
+         next
+      end
+
+      if instances.size > 1
+         STDERR.puts "The hostname #{hostname} matched multiple nodes, skipping!"
+         errcount += 1
+         next
+      end
+   
+      instance = instances.first
+   
+      # Move to next host if root not ebs
+      if instance.root_device_type != :ebs
+         STDERR.puts "#{hostname} does not have an EBS volume for a root!"
+         errcount += 1
+         next
+      end
+   
+      rootvol = instance.block_device_mappings[instance.root_device_name].volume
+      volume = rootvol
+   else
+      volume = ec2_east.volumes[input]
    end
 
-   if instances.size > 1
-      STDERR.puts "The hostname #{hostname} matched multiple nodes, skipping!"
-      errcount += 1
-      next
-   end
-
-   instance = instances.first
-
-   # Move to next host if root not ebs
-   if instance.root_device_type != :ebs
-      STDERR.puts "#{hostname} does not have an EBS volume for a root!"
-      errcount += 1
-      next
-   end
-
-   rootvol = instance.block_device_mappings[instance.root_device_name].volume
-   rootvol_snapshot = rootvol.create_snapshot("snapcopy_#{hostname}_#{Time.now.strftime('%Y%m%d')}")
-
-   # Show progress bar for rootvol snapshot
-   until [:completed, :error].include? rootvol_snapshot.status
+   puts "Snapshotting #{volume.id}..."
+   volume_snapshot = volume.create_snapshot("snapcopy_#{input}_#{Time.now.strftime('%Y%m%d')}")
+   # Show progress bar for volume snapshot
+   until [:completed, :error].include? volume_snapshot.status
       sleep 5
       printf "\r|"
-      (rootvol_snapshot.progress.to_i / 8).times {|i| printf "=" }
+      (volume_snapshot.progress.to_i / 8).times {|i| printf "=" }
       printf "> "
-      printf "%s%%", rootvol_snapshot.progress
+      printf "%s%%", volume_snapshot.progress
       STDOUT.flush
    end
    printf "\n"
    
-   if rootvol_snapshot.status == :error
-      STDERR.puts "Error creating snapshot of root for #{host}!"
+   if volume_snapshot.status == :error
+      STDERR.puts "Error creating snapshot of #{input}!"
       errcount += 1
       next
    end
-   
+
+   puts "Copying #{volume.id} to west coast..."
    copysnapshot_response = ec2_west.client.copy_snapshot(
       :source_region => "us-east-1",
-      :source_snapshot_id => rootvol_snapshot.id,
-      :description => "snapcopy_#{hostname}_#{Time.now.strftime('%Y%m%d')}")
+      :source_snapshot_id => volume_snapshot.id,
+      :description => "snapcopy_#{input}_#{Time.now.strftime('%Y%m%d')}")
 
    westcoast_snapshot_id = copysnapshot_response[:snapshot_id]
    westcoast_snapcopy = ec2_west.snapshots[westcoast_snapshot_id]
@@ -106,7 +115,7 @@ ARGV.each do |hostname|
    printf "\n"
    
    if westcoast_snapcopy.status == :error
-      STDERR.puts "Error creating snapcopy on west coast for #{host} rootvol!"
+      STDERR.puts "Error creating snapcopy on west coast for #{input}!"
       errcount += 1
       next
    end
