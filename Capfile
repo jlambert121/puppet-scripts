@@ -115,13 +115,14 @@ task :newserver, :roles => [:newservers] do
    deploy_to = "/web/#{fetch(:project)}"
    releases_path = "/web/#{fetch(:project)}/releases"
    shared_path = "/web/#{fetch(:project)}/shared"
-   shared_children = %w{log pids system tmp}
+   shared_children = %w{log pids pid system tmp}
 
    dirs = [deploy_to, releases_path, shared_path]
    dirs += shared_children.map { |d| File.join(shared_path, d.split('/').last) }
    run "sudo -u jenkins mkdir -p #{dirs.join(' ')}"
    dirs.delete deploy_to
-   run "sudo -u jenkins chmod g+w #{dirs.join(' ')}"
+   run "sudo chmod g+w #{dirs.join(' ')}"
+   run "sudo chown -R www-data:nogroup #{shared_children.map { |d| File.join(shared_path, d.split('/').last) }.join(' ')}"
 end
 
 #=============================================================================
