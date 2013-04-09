@@ -183,7 +183,15 @@ runstages.each_with_index do |stage,index|
                waited += 1
             end
 
-            node.associate_elastic_ip resolver.getaddress(node.user_data)
+            association_retries = 0
+
+            begin
+               node.associate_elastic_ip resolver.getaddress(node.user_data)
+            rescue => e
+               STDERR.puts "#{e}"
+               association_retries += 1
+               retry if association_retries < 3
+            end
 
             if waited == timeout
                throw "Timed out #{action}ing node #{node.user_data}"
