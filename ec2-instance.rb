@@ -286,6 +286,11 @@ until ARGV.size == 0 or threads.size == original_argvsize do
       # not a given node should be stopped.
       instance.tag(key = "autocontrol", options = { :value => autocontrol })
 
+      # Tag root volume appropriately
+      rootvol = instance.block_device_mappings[instance.root_device_name].volume
+      rootvol.tag('Name', :value => "rootvol-#{n.tags['Name']}")
+      rootvol.tag('instance_id', :value => n.instance_id)
+
       # If attacheip is true, create and associate EIP.
       if attacheip == "true"
          begin
