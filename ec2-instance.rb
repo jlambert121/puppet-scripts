@@ -126,6 +126,7 @@ imageid = ""
 instancetype = "m1.large"
 puppetize = false
 region = "us-east-1"
+rootvol_autocontrol = "false"
 securitygroup = ""
 startthreads = 2
 ticket_number = nil
@@ -135,18 +136,19 @@ zone = "us-east-1a"
 # Parse Options (1.8 style)
 begin
    opts = GetoptLong.new(
-      [ '--attacheip',     '-A',    GetoptLong::NO_ARGUMENT       ],
-      [ '--autocontrol',   '-a',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--help',          '-h',    GetoptLong::NO_ARGUMENT       ],
-      [ '--imageid',       '-m',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--instancetype',  '-i',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--puppetize',     '-p',    GetoptLong::NO_ARGUMENT       ],
-      [ '--region',        '-r',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--securitygroup', '-g',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--startthreads',  '-t',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--ticket',        '-T',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--volumesize',    '-v',    GetoptLong::REQUIRED_ARGUMENT ],
-      [ '--zone',          '-z',    GetoptLong::REQUIRED_ARGUMENT ]
+      [ '--attacheip',              '-A',    GetoptLong::NO_ARGUMENT       ],
+      [ '--autocontrol',            '-a',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--help',                   '-h',    GetoptLong::NO_ARGUMENT       ],
+      [ '--imageid',                '-m',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--instancetype',           '-i',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--puppetize',              '-p',    GetoptLong::NO_ARGUMENT       ],
+      [ '--region',                 '-r',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--securitygroup',          '-g',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--startthreads',           '-t',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--ticket',                 '-T',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--volumesize',             '-v',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--rootvolautocontrol',     '-V',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--zone',                   '-z',    GetoptLong::REQUIRED_ARGUMENT ]
    )
 
    opts.each do |opt, arg|
@@ -165,6 +167,8 @@ begin
             puppetize = true
          when '--region'
             region = arg
+         when '--rootvolautocontrol'
+            rootvol_autocontrol = arg
          when '--securitygroup'
             securitygroup = arg
 
@@ -288,8 +292,9 @@ until ARGV.size == 0 or threads.size == original_argvsize do
 
       # Tag root volume appropriately
       rootvol = instance.block_device_mappings[instance.root_device_name].volume
-      rootvol.tag('Name', :value => "rootvol-#{n.tags['Name']}")
-      rootvol.tag('instance_id', :value => n.instance_id)
+      rootvol.tag('Name', :value => "rootvol-#{instance.tags['Name']}")
+      rootvol.tag('instance_id', :value => instance.instance_id)
+      rootvol.tag('autocontrol', :value => rootvol_autocontrol)
 
       # If attacheip is true, create and associate EIP.
       if attacheip == "true"

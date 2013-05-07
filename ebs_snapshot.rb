@@ -41,6 +41,7 @@ end
 # Argument defaults
 cleanup     = false
 environment = ""
+force       = false
 host        = ""
 
 def create_snapshots(volumes)
@@ -55,7 +56,7 @@ def create_snapshots(volumes)
       STDOUT.flush
       snap = vol.create_snapshot("#{instance.tags["Name"]} - #{Time.now.to_s}")
       snap.tags["Name"] = instance.tags["Name"]
-      snap.tags["autodelete"] = "true"
+      snap.tags["autodelete"] = vol.tags["autocontrol"]
       until [:completed, :error].include? snap.status
          printf "\r"
          printf "%s%%", snap.progress
@@ -76,6 +77,7 @@ begin
    opts = GetoptLong.new(
       [ '--cleanup',       '-c',    GetoptLong::NO_ARGUMENT ],
       [ '--environment',   '-e',    GetoptLong::REQUIRED_ARGUMENT ],
+      [ '--force',         '-f',    GetoptLong::NO_ARGUMENT ],
       [ '--host',          '-H',    GetoptLong::REQUIRED_ARGUMENT ],
       [ '--help',          '-h',    GetoptLong::NO_ARGUMENT ]
    )
@@ -86,6 +88,8 @@ begin
             cleanup = true
          when '--environment'
             environment = arg
+         when '--force'
+            force = true
          when '--host'
             host = arg
          when '--help'
@@ -126,8 +130,16 @@ if host.empty? and not environment.empty?
    # strip out vols not attached to anything, then flatten the array.
    attachments.delete_if { |item| item.empty? }
    attachments.flatten!
+
+   # Get volume array from attachments, remove from array if not autocontrol
    volumes = attachments.map { |att| att.volume }
-   create_snapshots(volumes)
+   volumes.delete_if { |vol| vol.tags["autocontrol"] == "false" }
+
+   if volumes.size == 0 or volumes.nil?
+      STDERR.puts "Matched no volumes, is autocontrol set to false on everything?"
+   else
+      create_snapshots(volumes)
+   end
 elsif not host.empty? and environment.empty?
    node = ec2.instances.select do |instance|
       instance.tags["Name"] == host
@@ -138,6 +150,9 @@ elsif not host.empty? and environment.empty?
    if node.root_device_type != :ebs
       STDERR.puts "Requested host #{host} does not have an EBS root volume"
       exit -5
+   if node.tags["autocontrol"] == "false" and force != true
+      STDERR.puts "Host #{host}'s root volume has autocontrol set to false, use force (-f) to override!"
+      exit -6
    else
       puts "Taking EBS Snapshot of #{host}"
       root_att = node.block_device_mappings[node.root_device_name]
