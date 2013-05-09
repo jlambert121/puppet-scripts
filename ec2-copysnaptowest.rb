@@ -26,7 +26,7 @@
 # Licensed under the BSD license
 #
 
-require 'aws-config'
+require "#{File.dirname(__FILE__)}/aws-config"
 require 'rdoc/usage'
 
 # This will be used to keep track of how many errors we have, and it will be
