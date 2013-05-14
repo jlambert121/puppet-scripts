@@ -77,6 +77,9 @@ ARGV.each do |input|
 
    puts "Snapshotting #{volume.id}..."
    volume_snapshot = volume.create_snapshot("snapcopy_#{input}_#{Time.now.strftime('%Y%m%d')}")
+   volume_snapshot.tags["Name"] = "snapcopy-#{volume.attachments.first.instance.tags['Name']}"
+   volume_snapshot.tags["autodelete"] = "true"
+
    # Show progress bar for volume snapshot
    until [:completed, :error].include? volume_snapshot.status
       sleep 5
@@ -119,7 +122,11 @@ ARGV.each do |input|
       errcount += 1
       next
    end
+
+   westcoast_snapcopy.tags["autodelete"] = "true"
+   westcoast_snapcopy.tags["Name"] = "snapcopy-#{volume.attachments.first.instance.tags['Name']}"
 end
 
 exit errcount
+
 #vim: set expandtab ts=3 sw=3:
