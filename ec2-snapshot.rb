@@ -61,7 +61,7 @@ force       = false
 mode        = ""
 region      = "us-east-1"
 
-def get_volumes(mode)
+def get_volumes(mode, ec2)
    volumes = []
 
    case mode
@@ -198,7 +198,7 @@ rescue => e
 end
 
 AWS.memoize do
-   create_snapshots(get_volumes(mode))
+   create_snapshots(get_volumes(mode, ec2))
 end
 
 #vim: set expandtab ts=3 sw=3:
