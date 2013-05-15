@@ -61,7 +61,7 @@ force       = false
 mode        = ""
 region      = "us-east-1"
 
-def get_volumes(mode, ec2)
+def get_volumes(mode, ec2, force)
    volumes = []
 
    case mode
@@ -99,13 +99,13 @@ def get_volumes(mode, ec2)
 
             node = node.first
 
-            if node.attachments.empty?
+            if node.attachments.count == 0
                STDERR.puts "Skipping host #{host} as it appears to have no EBS volumes attached!"
                next
             end 
 
             node.attachments.each_key do |mountpoint|
-               volumes << n.attachments[mountpoint].volume
+               volumes << node.attachments[mountpoint].volume
             end
          end
       when 'volume'
@@ -128,13 +128,13 @@ def create_snapshots(volumes)
    end
 
    volumes.each do |vol|
-      if vol.attachments.empty?
+      if vol.attachments.count == 0
          hostname = "UNATTACHED_VOLUME"
       else
          hostname = vol.attachments.first.instance.tags["Name"]
       end
 
-      printf "Creating snapshot of host %s and attached volume %s\n", hostname, vol.id 
+      printf "Creating snapshot of host %s volume %s\n", hostname, vol.id 
       STDOUT.flush
 
       snap = vol.create_snapshot("#{hostname} - #{vol.id} - #{Time.now.to_s}")
@@ -149,10 +149,10 @@ def create_snapshots(volumes)
       end
  
       if snap.status == :completed
-          printf " SUCCESS!\n"
-       else
-          printf " ERROR!\n"
-       end
+         printf " SUCCESS!\n"
+      else
+         printf " ERROR!\n"
+      end
     end
 end
 
@@ -198,7 +198,7 @@ rescue => e
 end
 
 AWS.memoize do
-   create_snapshots(get_volumes(mode, ec2))
+   create_snapshots(get_volumes(mode, ec2, force))
 end
 
 #vim: set expandtab ts=3 sw=3:
