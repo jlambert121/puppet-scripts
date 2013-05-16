@@ -197,8 +197,7 @@ rescue => e
    fail "#{e}"
 end
 
-AWS.memoize do
-   create_snapshots(get_volumes(mode, ec2, force))
-end
+volumes = AWS.memoize { get_volumes(mode, ec2, force) }
+create_snapshots(volumes)
 
 #vim: set expandtab ts=3 sw=3:
