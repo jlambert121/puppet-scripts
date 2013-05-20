@@ -79,7 +79,8 @@ def get_volumes(mode, ec2, force)
             attachments.flatten!
          
             # Get volume array from attachments
-            volumes = attachments.map { |att| att.volume }
+            volumes << attachments.map { |att| att.volume }
+            volumes.flatten!
          end
       when 'host'
          ARGV.each do |host|
