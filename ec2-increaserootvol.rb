@@ -197,7 +197,7 @@ if newrootvol.status == :error
    exit -11
 end
 
-newrootvol.tag('Name', :value => oldrootvol.tags["Name"]})
+newrootvol.tag('Name', :value => oldrootvol.tags["Name"])
 newrootvol.tag('instance_id', :value => oldrootvol.tags["instance_id"])
 newrootvol.tag('autocontrol', :value => oldrootvol.tags["autocontrol"])
 
